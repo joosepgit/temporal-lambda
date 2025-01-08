@@ -249,7 +249,7 @@ let view_navbar =
       [
         elt "a"
           ~a:[ class_ "navbar-item" ]
-          [ elt "p" ~a:[ class_ "title" ] [ text "Millet" ] ];
+          [ elt "p" ~a:[ class_ "title" ] [ text "Temporal lamda" ] ];
       ]
   in
 
