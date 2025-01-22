@@ -3,13 +3,13 @@ module Ast = Language.Ast
 module Const = Language.Const
 
 type state = {
-  variables : (Ast.ty_param list * Ast.ty) Ast.VariableMap.t;
+  variables : (Ast.ty_param list * Ast.ty) Ast.VariableContext.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
 
 let initial_state =
   {
-    variables = Ast.VariableMap.empty;
+    variables = Ast.VariableContext.empty;
     type_definitions =
       (Ast.TyNameMap.empty
       |> Ast.TyNameMap.add Ast.bool_ty_name
@@ -68,7 +68,10 @@ let fresh_ty () =
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
-      { state with variables = Ast.VariableMap.add x ([], ty) state.variables })
+      let updated_variables = 
+        Ast.VariableContext.add_variable_to_last_map x ([], ty) state.variables
+      in
+      { state with variables = updated_variables })
     state vars
 
 let refreshing_subst params =
@@ -128,7 +131,7 @@ let rec infer_pattern state = function
 
 let rec infer_expression state = function
   | Ast.Var x ->
-      let params, ty = Ast.VariableMap.find x state.variables in
+      let params, ty = Ast.VariableContext.find_variable x state.variables in
       let subst = refreshing_subst params in
       (Ast.substitute_ty subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
@@ -253,7 +256,7 @@ let infer state e =
   t'
 
 let add_external_function x ty_sch state =
-  { state with variables = Ast.VariableMap.add x ty_sch state.variables }
+  { state with variables = Ast.VariableContext.add_variable_to_last_map x ty_sch state.variables }
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in

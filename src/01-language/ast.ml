@@ -106,6 +106,7 @@ let rec free_vars = function
 
 module Variable = Symbol.Make ()
 module VariableMap = Map.Make (Variable)
+module VariableContext = Context.Make (Variable) (Map.Make (Variable))
 module Label = Symbol.Make ()
 
 let print_var_and_ty (variable, (params, ty)) ppf =
@@ -117,8 +118,7 @@ let print_var_and_ty (variable, (params, ty)) ppf =
   Print.print ppf "@[%t@]" (print_ty pp ty);
   Format.pp_print_flush ppf ()
 
-(* Print the VariableMap *)
-let print_variable_map (map : (ty_param list * ty) VariableMap.t) =
+let print_variable_map map =
   Printf.printf "VariableMap: {\n";
   let elements = VariableMap.bindings map in
   let rec print_elements = function
@@ -135,6 +135,14 @@ let print_variable_map (map : (ty_param list * ty) VariableMap.t) =
   in
   print_elements elements;
   Printf.printf " \n}\n"
+
+let print_variable_context ctx =
+  Printf.printf "VariableContext: [\n";
+  VariableContext.print_contents print_var_and_ty ctx;
+  Printf.printf "]\n"
+
+let add_dummy_nat_to_ctx nat ctx = 
+  VariableContext.add_nat nat ctx
 
 type variable = Variable.t
 type label = Label.t
