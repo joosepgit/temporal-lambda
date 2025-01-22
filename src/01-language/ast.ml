@@ -67,9 +67,19 @@ let new_print_param () =
   in
   print_param
 
-let print_ty_scheme (_params, ty) ppf =
-  let print_param = new_print_param () in
-  Print.print ppf "@[%t@]" (print_ty print_param ty)
+let print_ty_params params ppf =
+  Format.fprintf ppf "[";
+  let rec print_helper = function
+    | [] -> () (* Base case: empty list, do nothing *)
+    | [last] -> (* Single element case: print without trailing comma *)
+        TyParam.print last ppf
+    | hd :: tl -> (* General case: print with trailing comma *)
+        TyParam.print hd ppf;
+        Format.fprintf ppf ", ";
+        print_helper tl
+  in
+  print_helper params;
+  Format.fprintf ppf "]"
 
 let rec substitute_ty subst = function
   | TyConst _ as ty -> ty
@@ -97,6 +107,34 @@ let rec free_vars = function
 module Variable = Symbol.Make ()
 module VariableMap = Map.Make (Variable)
 module Label = Symbol.Make ()
+
+let print_var_and_ty (variable, (params, ty)) ppf =
+  let pp = new_print_param () in
+  Variable.print variable ppf;
+  Format.fprintf ppf " -> ";
+  print_ty_params params ppf;
+  Format.fprintf ppf ", ";
+  Print.print ppf "@[%t@]" (print_ty pp ty);
+  Format.pp_print_flush ppf ()
+
+(* Print the VariableMap *)
+let print_variable_map (map : (ty_param list * ty) VariableMap.t) =
+  Printf.printf "VariableMap: {\n";
+  let elements = VariableMap.bindings map in
+  let rec print_elements = function
+    | [] -> ()
+    | [entry] -> (* Last element: no trailing semicolon *)
+        Printf.printf "(";
+        print_var_and_ty entry Format.std_formatter;
+        Printf.printf ")"
+    | entry :: tl -> (* All other elements: add semicolon *)
+        Printf.printf "(";
+        print_var_and_ty entry Format.std_formatter;
+        Printf.printf "), ";
+        print_elements tl
+  in
+  print_elements elements;
+  Printf.printf " \n}\n"
 
 type variable = Variable.t
 type label = Label.t

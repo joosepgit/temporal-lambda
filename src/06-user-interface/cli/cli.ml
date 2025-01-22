@@ -41,7 +41,8 @@ let main () =
     in
     let state' = List.fold_left Loader.load_file state config.filenames in
     let run_state = Backend.run state'.backend in
-    run run_state
+    run run_state;
+    Ast.print_variable_map state'.typechecker.variables;
   with Error.Error error ->
     Error.print error;
     exit 1
