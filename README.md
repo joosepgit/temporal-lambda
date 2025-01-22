@@ -6,7 +6,7 @@ Do you, like me, test theoretical programming language concepts by building your
 
 Install dependencies by
 
-    opam install menhir ocaml-vdom ocamlformat
+    opam install menhir vdom ocamlformat=0.27.0
 
 and build Millet by running (requires OCaml >= 4.14.0)
 
