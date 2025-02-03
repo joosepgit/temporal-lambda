@@ -8,10 +8,10 @@ module Make (Variable : Symbol.S) (VariableMap : Map.S with type key = Variable.
   let empty : 'a t = []
 
   (* Add a natural number to the end of the list in reverse order (by adding to the front) *)
-  let add_nat (n : int) (lst : 'a t) : 'a t = Nat n :: lst
+  let add_temp (n : int) (lst : 'a t) : 'a t = Nat n :: lst
 
   (* Add a variable to the last VariableMap or create a new one, in reverse order *)
-  let add_variable_to_last_map (key : Variable.t) (value : 'a) (lst : 'a t) : 'a t =
+  let add_variable (key : Variable.t) (value : 'a) (lst : 'a t) : 'a t =
     match lst with
     | VarMap map :: rest ->
         (* Add the variable to the last VariableMap *)

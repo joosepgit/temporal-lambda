@@ -119,6 +119,7 @@ and refresh_computation vars = function
         (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
   | Ast.Apply (expr1, expr2) ->
       Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
+  | Ast.Delay (n, comp) -> Ast.Delay (n, refresh_computation vars comp)
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -149,6 +150,7 @@ and substitute_computation subst = function
   | Ast.Apply (expr1, expr2) ->
       Ast.Apply
         (substitute_expression subst expr1, substitute_expression subst expr2)
+  | Ast.Delay (n, comp) -> Ast.Delay (n, substitute_computation subst comp)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -210,6 +212,7 @@ let rec step_computation env = function
           (ComputationRedex DoReturn, fun () -> substitute subst comp2')
           :: comps1'
       | _ -> comps1')
+  | Ast.Delay (_, comp) -> [ (ComputationRedex DoReturn, fun () -> comp) ]
 
 type load_state = {
   environment : environment;

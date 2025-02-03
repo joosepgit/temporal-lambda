@@ -17,6 +17,7 @@
 %token TYPE ARROW OF
 %token MATCH WITH FUNCTION
 %token RUN LET REC AND IN
+%token DELAY
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -90,6 +91,8 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | t = plain_comma_term
     { t }
+  | DELAY d = INT t = plain_comma_term
+    { ignore d; t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:

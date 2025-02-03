@@ -142,7 +142,7 @@ let print_variable_context ctx =
   Printf.printf "]\n"
 
 let add_dummy_nat_to_ctx nat ctx = 
-  VariableContext.add_nat nat ctx
+  VariableContext.add_temp nat ctx
 
 type variable = Variable.t
 type label = Label.t
@@ -175,6 +175,7 @@ and computation =
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
+  | Delay of int * computation
 
 and abstraction = pattern * computation
 
@@ -236,6 +237,7 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
+  | Delay (n, c) -> print ~at_level:1 "delay %d %t" n (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

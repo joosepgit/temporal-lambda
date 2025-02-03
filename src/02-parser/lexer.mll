@@ -32,6 +32,7 @@
     ("true", BOOL true);
     ("type", TYPE);
     ("with", WITH);
+    ("delay", DELAY);
   ]
 
   let escaped_characters = [

@@ -69,10 +69,15 @@ let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
       let updated_variables = 
-        Ast.VariableContext.add_variable_to_last_map x ([], ty) state.variables
+        Ast.VariableContext.add_variable x ([], ty) state.variables
       in
       { state with variables = updated_variables })
     state vars
+
+let extend_temporal state t =
+    let updated_variables = 
+      Ast.VariableContext.add_temp t state.variables
+    in { state with variables = updated_variables }
 
 let refreshing_subst params =
   List.fold_left
@@ -184,6 +189,10 @@ and infer_computation state = function
         ((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs
       in
       (ty2, List.fold_left fold eqs cases)
+  | Ast.Delay (n, comp) ->
+      let state' = extend_temporal state n in
+      let ty, eqs = infer_computation state' comp in
+      (ty, eqs)
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -256,7 +265,7 @@ let infer state e =
   t'
 
 let add_external_function x ty_sch state =
-  { state with variables = Ast.VariableContext.add_variable_to_last_map x ty_sch state.variables }
+  { state with variables = Ast.VariableContext.add_variable x ty_sch state.variables }
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in
