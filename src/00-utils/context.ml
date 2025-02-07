@@ -35,6 +35,19 @@ module Make (Variable : Symbol.S) (VariableMap : Map.S with type key = Variable.
     in
     find_in_maps lst
 
+      (* Find a variable in any VariableMap in the list, in reverse order *)
+  let find_variable_opt (key : Variable.t) (lst : 'a t) : 'a option =
+    let rec find_in_maps maps = match maps with
+      | [] -> None  (* No more maps to check *)
+      | VarMap map :: rest ->
+          (* Check if the key is in this VariableMap *)
+          (match VariableMap.find_opt key map with
+            | Some value -> Some value  (* Found the variable *)
+            | None -> find_in_maps rest)  (* Continue searching in the rest of the list *)
+      | Nat _ :: rest -> find_in_maps rest  (* Skip Nat elements *)
+    in
+    find_in_maps lst
+
   (* Print the contents of the list, reversing it before printing *)
   let print_contents print_var_and_ty lst =
     let rec print_list lst =

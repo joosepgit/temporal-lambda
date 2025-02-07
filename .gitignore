@@ -5,3 +5,5 @@ cli.exe
 .vscode
 .merlin
 web/web.bc.js
+
+examples/temp.mlt

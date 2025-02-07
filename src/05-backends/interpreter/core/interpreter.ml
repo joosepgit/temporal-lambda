@@ -3,14 +3,14 @@ module Ast = Language.Ast
 module Const = Language.Const
 
 type environment = {
-  variables : Ast.expression Ast.VariableMap.t;
-  builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableMap.t;
+  variables : Ast.expression Ast.VariableContext.t;
+  builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableContext.t;
 }
 
 let initial_environment =
   {
-    variables = Ast.VariableMap.empty;
-    builtin_functions = Ast.VariableMap.empty;
+    variables = Ast.VariableContext.empty;
+    builtin_functions = Ast.VariableContext.empty;
   }
 
 exception PatternMismatch
@@ -23,19 +23,19 @@ type computation_reduction =
 
 let rec eval_tuple env = function
   | Ast.Tuple exprs -> exprs
-  | Ast.Var x -> eval_tuple env (Ast.VariableMap.find x env.variables)
+  | Ast.Var x -> eval_tuple env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
 let rec eval_variant env = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
-  | Ast.Var x -> eval_variant env (Ast.VariableMap.find x env.variables)
+  | Ast.Var x -> eval_variant env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
 let rec eval_const env = function
   | Ast.Const c -> c
-  | Ast.Var x -> eval_const env (Ast.VariableMap.find x env.variables)
+  | Ast.Var x -> eval_const env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
@@ -173,9 +173,9 @@ let rec eval_function env = function
         in
         substitute subst comp
   | Ast.Var x -> (
-      match Ast.VariableMap.find_opt x env.variables with
+      match Ast.VariableContext.find_variable_opt x env.variables with
       | Some expr -> eval_function env expr
-      | None -> Ast.VariableMap.find x env.builtin_functions)
+      | None -> Ast.VariableContext.find_variable x env.builtin_functions)
   | expr ->
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
@@ -229,7 +229,7 @@ let load_primitive load_state x prim =
       {
         load_state.environment with
         builtin_functions =
-          Ast.VariableMap.add x
+          Ast.VariableContext.add_variable x
             (Primitives.primitive_function prim)
             load_state.environment.builtin_functions;
       };
@@ -243,7 +243,7 @@ let load_top_let load_state x expr =
     environment =
       {
         load_state.environment with
-        variables = Ast.VariableMap.add x expr load_state.environment.variables;
+        variables = Ast.VariableContext.add_variable x expr load_state.environment.variables;
       };
   }
 
