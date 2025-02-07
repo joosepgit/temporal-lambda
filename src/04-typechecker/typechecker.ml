@@ -51,8 +51,10 @@ let rec check_ty state = function
   | TyParam _ -> ()
   | TyArrow (ty1, ty2) ->
       check_ty state ty1;
-      check_ty state ty2
+      check_comp_ty state ty2
   | TyTuple tys -> List.iter (check_ty state) tys
+
+and check_comp_ty state = function Ast.CompTy (ty, _tau) -> check_ty state ty
 
 let check_variant state (_label, arg_ty) =
   match arg_ty with None -> () | Some ty -> check_ty state ty
@@ -171,11 +173,14 @@ let rec infer_expression state = function
 and infer_computation state = function
   | Ast.Return expr ->
       let ty, eqs = infer_expression state expr in
-      (ty, eqs)
+      (Ast.CompTy (ty, 0), eqs)
   | Ast.Do (comp1, comp2) ->
-      let ty1, eqs1 = infer_computation state comp1 in
-      let ty1', ty2, eqs2 = infer_abstraction state comp2 in
-      (ty2, ((ty1, ty1') :: eqs1) @ eqs2)
+      let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
+      let state' = extend_temporal state tau1 in
+      let ty1', CompTy (ty2, tau2), eqs2 =
+        infer_abstraction state' (* TODO *) comp2
+      in
+      (CompTy (ty2, tau1 + tau2), ((ty1, ty1') :: eqs1) @ eqs2)
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2

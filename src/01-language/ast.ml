@@ -24,8 +24,10 @@ type ty =
   | TyConst of Const.ty
   | TyApply of ty_name * ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
   | TyParam of ty_param  (** ['a] *)
-  | TyArrow of ty * ty  (** [ty1 -> ty2] *)
+  | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
+
+and comp_ty = CompTy of ty * int
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -41,7 +43,7 @@ let rec print_ty ?max_level print_param p ppf =
         (Print.print_tuple (print_ty print_param) tys)
         (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
-  | TyArrow (ty1, ty2) ->
+  | TyArrow (ty1, CompTy (ty2, _)) ->
       print ~at_level:3 "%t → %t"
         (print_ty ~max_level:2 print_param ty1)
         (print_ty ~max_level:3 print_param ty2)
@@ -90,8 +92,8 @@ let rec substitute_ty subst = function
   | TyApply (ty_name, tys) ->
       TyApply (ty_name, List.map (substitute_ty subst) tys)
   | TyTuple tys -> TyTuple (List.map (substitute_ty subst) tys)
-  | TyArrow (ty1, ty2) ->
-      TyArrow (substitute_ty subst ty1, substitute_ty subst ty2)
+  | TyArrow (ty1, CompTy (ty2, tau)) ->
+      TyArrow (substitute_ty subst ty1, CompTy (substitute_ty subst ty2, tau))
 
 let rec free_vars = function
   | TyConst _ -> TyParamSet.empty
@@ -104,7 +106,8 @@ let rec free_vars = function
       List.fold_left
         (fun vars ty -> TyParamSet.union vars (free_vars ty))
         TyParamSet.empty tys
-  | TyArrow (ty1, ty2) -> TyParamSet.union (free_vars ty1) (free_vars ty2)
+  | TyArrow (ty1, CompTy (ty2, _)) ->
+      TyParamSet.union (free_vars ty1) (free_vars ty2)
 
 module Variable = Symbol.Make ()
 module VariableMap = Map.Make (Variable)

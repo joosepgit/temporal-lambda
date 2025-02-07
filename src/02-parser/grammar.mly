@@ -366,7 +366,7 @@ defined_ty:
 
 ty: mark_position(plain_ty) { $1 }
 plain_ty:
-  | t1 = ty_apply ARROW t2 = ty
+  | t1 = ty_apply ARROW t2 = plain_comp_ty
     { TyArrow (t1, t2) }
   | t = plain_prod_ty
     { t }
