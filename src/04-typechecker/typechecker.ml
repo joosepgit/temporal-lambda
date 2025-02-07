@@ -68,16 +68,15 @@ let fresh_ty () =
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
-      let updated_variables = 
+      let updated_variables =
         Ast.VariableContext.add_variable x ([], ty) state.variables
       in
       { state with variables = updated_variables })
     state vars
 
 let extend_temporal state t =
-    let updated_variables = 
-      Ast.VariableContext.add_temp t state.variables
-    in { state with variables = updated_variables }
+  let updated_variables = Ast.VariableContext.add_temp t state.variables in
+  { state with variables = updated_variables }
 
 let refreshing_subst params =
   List.fold_left
@@ -265,7 +264,10 @@ let infer state e =
   t'
 
 let add_external_function x ty_sch state =
-  { state with variables = Ast.VariableContext.add_variable x ty_sch state.variables }
+  {
+    state with
+    variables = Ast.VariableContext.add_variable x ty_sch state.variables;
+  }
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in

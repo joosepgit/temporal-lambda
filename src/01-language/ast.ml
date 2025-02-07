@@ -71,9 +71,11 @@ let print_ty_params params ppf =
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> () (* Base case: empty list, do nothing *)
-    | [last] -> (* Single element case: print without trailing comma *)
+    | [ last ] ->
+        (* Single element case: print without trailing comma *)
         TyParam.print last ppf
-    | hd :: tl -> (* General case: print with trailing comma *)
+    | hd :: tl ->
+        (* General case: print with trailing comma *)
         TyParam.print hd ppf;
         Format.fprintf ppf ", ";
         print_helper tl
@@ -123,11 +125,13 @@ let print_variable_map map =
   let elements = VariableMap.bindings map in
   let rec print_elements = function
     | [] -> ()
-    | [entry] -> (* Last element: no trailing semicolon *)
+    | [ entry ] ->
+        (* Last element: no trailing semicolon *)
         Printf.printf "(";
         print_var_and_ty entry Format.std_formatter;
         Printf.printf ")"
-    | entry :: tl -> (* All other elements: add semicolon *)
+    | entry :: tl ->
+        (* All other elements: add semicolon *)
         Printf.printf "(";
         print_var_and_ty entry Format.std_formatter;
         Printf.printf "), ";
@@ -141,8 +145,7 @@ let print_variable_context ctx =
   VariableContext.print_contents print_var_and_ty ctx;
   Printf.printf "]\n"
 
-let add_dummy_nat_to_ctx nat ctx = 
-  VariableContext.add_temp nat ctx
+let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
 type variable = Variable.t
 type label = Label.t

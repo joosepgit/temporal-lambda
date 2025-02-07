@@ -23,19 +23,22 @@ type computation_reduction =
 
 let rec eval_tuple env = function
   | Ast.Tuple exprs -> exprs
-  | Ast.Var x -> eval_tuple env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x ->
+      eval_tuple env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
 let rec eval_variant env = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
-  | Ast.Var x -> eval_variant env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x ->
+      eval_variant env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
 let rec eval_const env = function
   | Ast.Const c -> c
-  | Ast.Var x -> eval_const env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x ->
+      eval_const env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
@@ -243,7 +246,9 @@ let load_top_let load_state x expr =
     environment =
       {
         load_state.environment with
-        variables = Ast.VariableContext.add_variable x expr load_state.environment.variables;
+        variables =
+          Ast.VariableContext.add_variable x expr
+            load_state.environment.variables;
       };
   }
 
