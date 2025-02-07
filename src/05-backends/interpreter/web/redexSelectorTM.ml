@@ -4,26 +4,26 @@ module Ast = Language.Ast
 let tag_marker = "###"
 let print_mark ppf = Format.pp_print_as ppf 0 tag_marker
 
-let print_computation_redex ?max_level red tc ppf =
+let print_computation_redex ?max_level red c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
-  match (red, tc) with
-  | DoReturn, Ast.Do ((c1, _), (pat, (c2, _))) ->
+  match (red, c) with
+  | Interpreter.DoReturn, Ast.Do (c1, (pat, c2)) ->
       print "@[<hov>%tlet@[<hov>@ %t =@ %t@]%t in@ %t@]" print_mark
         (Ast.print_pattern pat) (Ast.print_computation c1) print_mark
         (Ast.print_computation c2)
-  | _, temp_comp ->
+  | _, comp ->
       print "%t%t%t" print_mark
-        (fun ppf -> Ast.print_computation ?max_level temp_comp ppf)
+        (fun ppf -> Ast.print_computation ?max_level comp ppf)
         print_mark
 
-let rec print_computation_reduction ?max_level red tc ppf =
+let rec print_computation_reduction ?max_level red c ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
-  match (red, tc) with
-  | DoCtx red, Ast.Do ((c1, _), (Ast.PNonbinding, (c2, _))) ->
+  match (red, c) with
+  | Interpreter.DoCtx red, Ast.Do (c1, (Ast.PNonbinding, c2)) ->
       print "@[<hov>%t;@ %t@]"
         (print_computation_reduction red c1)
         (Ast.print_computation c2)
-  | DoCtx red, Ast.Do ((c1, _), (pat, (c2, _))) ->
+  | DoCtx red, Ast.Do (c1, (pat, c2)) ->
       print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (Ast.print_pattern pat)
         (print_computation_reduction red c1)
         (Ast.print_computation c2)

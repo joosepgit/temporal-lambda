@@ -68,15 +68,16 @@ let fresh_ty () =
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
-      let updated_variables =
+      let updated_variables = 
         Ast.VariableContext.add_variable x ([], ty) state.variables
       in
       { state with variables = updated_variables })
     state vars
 
 let extend_temporal state t =
-  let updated_variables = Ast.VariableContext.add_temp t state.variables in
-  { state with variables = updated_variables }
+    let updated_variables = 
+      Ast.VariableContext.add_temp t state.variables
+    in { state with variables = updated_variables }
 
 let refreshing_subst params =
   List.fold_left
@@ -173,7 +174,7 @@ and infer_computation state = function
       let ty, eqs = infer_expression state expr in
       (ty, eqs)
   | Ast.Do (comp1, comp2) ->
-      let ty1, eqs1 = infer_temporal_computation state comp1 in
+      let ty1, eqs1 = infer_computation state comp1 in
       let ty1', ty2, eqs2 = infer_abstraction state comp2 in
       (ty2, ((ty1, ty1') :: eqs1) @ eqs2)
   | Ast.Apply (e1, e2) ->
@@ -190,17 +191,13 @@ and infer_computation state = function
       (ty2, List.fold_left fold eqs cases)
   | Ast.Delay (n, comp) ->
       let state' = extend_temporal state n in
-      let ty, eqs = infer_temporal_computation state' comp in
+      let ty, eqs = infer_computation state' comp in
       (ty, eqs)
-
-and infer_temporal_computation state (comp, tau) =
-  let state' = extend_temporal state tau in
-  infer_computation state' comp
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
   let state' = extend_variables state vars in
-  let ty', eqs' = infer_temporal_computation state' comp in
+  let ty', eqs' = infer_computation state' comp in
   (ty, ty', eqs @ eqs')
 
 let subst_equations sbst =
@@ -268,10 +265,7 @@ let infer state e =
   t'
 
 let add_external_function x ty_sch state =
-  {
-    state with
-    variables = Ast.VariableContext.add_variable x ty_sch state.variables;
-  }
+  { state with variables = Ast.VariableContext.add_variable x ty_sch state.variables }
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in

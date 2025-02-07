@@ -23,22 +23,19 @@ type computation_reduction =
 
 let rec eval_tuple env = function
   | Ast.Tuple exprs -> exprs
-  | Ast.Var x ->
-      eval_tuple env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x -> eval_tuple env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
 let rec eval_variant env = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
-  | Ast.Var x ->
-      eval_variant env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x -> eval_variant env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
 let rec eval_const env = function
   | Ast.Const c -> c
-  | Ast.Var x ->
-      eval_const env (Ast.VariableContext.find_variable x env.variables)
+  | Ast.Var x -> eval_const env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Const expected but got %t" (Ast.print_expression expr)
 
@@ -115,24 +112,18 @@ let rec refresh_expression vars = function
 
 and refresh_computation vars = function
   | Ast.Return expr -> Ast.Return (refresh_expression vars expr)
-  | Ast.Do (temp_comp, abs) ->
-      Ast.Do
-        ( refresh_temporal_computation vars temp_comp,
-          refresh_abstraction vars abs )
+  | Ast.Do (comp, abs) ->
+      Ast.Do (refresh_computation vars comp, refresh_abstraction vars abs)
   | Ast.Match (expr, cases) ->
       Ast.Match
         (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
   | Ast.Apply (expr1, expr2) ->
       Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-  | Ast.Delay (n, temp_comp) ->
-      Ast.Delay (n, refresh_temporal_computation vars temp_comp)
-
-and refresh_temporal_computation vars (temp_comp, tau) =
-  (refresh_computation vars temp_comp, tau)
+  | Ast.Delay (n, comp) -> Ast.Delay (n, refresh_computation vars comp)
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
-  (pat', refresh_temporal_computation (vars @ vars') comp)
+  (pat', refresh_computation (vars @ vars') comp)
 
 let rec substitute_expression subst = function
   | Ast.Var x as expr -> (
@@ -149,10 +140,9 @@ let rec substitute_expression subst = function
 
 and substitute_computation subst = function
   | Ast.Return expr -> Ast.Return (substitute_expression subst expr)
-  | Ast.Do (temp_comp, abs) ->
+  | Ast.Do (comp, abs) ->
       Ast.Do
-        ( substitute_temporal_computation subst temp_comp,
-          substitute_abstraction subst abs )
+        (substitute_computation subst comp, substitute_abstraction subst abs)
   | Ast.Match (expr, cases) ->
       Ast.Match
         ( substitute_expression subst expr,
@@ -160,32 +150,28 @@ and substitute_computation subst = function
   | Ast.Apply (expr1, expr2) ->
       Ast.Apply
         (substitute_expression subst expr1, substitute_expression subst expr2)
-  | Ast.Delay (n, temp_comp) ->
-      Ast.Delay (n, substitute_temporal_computation subst temp_comp)
-
-and substitute_temporal_computation subst (temp_comp, tau) =
-  (substitute_computation subst temp_comp, tau)
+  | Ast.Delay (n, comp) -> Ast.Delay (n, substitute_computation subst comp)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
-  (pat, substitute_temporal_computation subst' comp)
+  (pat, substitute_computation subst' comp)
 
-let substitute subst temp_comp =
+let substitute subst comp =
   let subst = Ast.VariableMap.map (refresh_expression []) subst in
-  substitute_temporal_computation subst temp_comp
+  substitute_computation subst comp
 
 let rec eval_function env = function
-  | Ast.Lambda (pat, temp_comp) ->
+  | Ast.Lambda (pat, comp) ->
       fun arg ->
         let subst = match_pattern_with_expression env pat arg in
-        substitute subst temp_comp
-  | Ast.RecLambda (f, (pat, temp_comp)) as expr ->
+        substitute subst comp
+  | Ast.RecLambda (f, (pat, comp)) as expr ->
       fun arg ->
         let subst =
           match_pattern_with_expression env pat arg
           |> Ast.VariableMap.add f expr
         in
-        substitute subst temp_comp
+        substitute subst comp
   | Ast.Var x -> (
       match Ast.VariableContext.find_variable_opt x env.variables with
       | Some expr -> eval_function env expr
@@ -197,9 +183,7 @@ let step_in_context step env redCtx ctx term =
   let terms' = step env term in
   List.map (fun (red, term') -> (redCtx red, fun () -> ctx (term' ()))) terms'
 
-let rec step_temporal_computation (temp_comp, _) = step_computation temp_comp
-
-and step_computation env = function
+let rec step_computation env = function
   | Ast.Return _ -> []
   | Ast.Match (expr, cases) ->
       let rec find_case = function
@@ -216,7 +200,7 @@ and step_computation env = function
       [ (ComputationRedex ApplyFun, fun () -> f expr2) ]
   | Ast.Do (comp1, comp2) -> (
       let comps1' =
-        step_in_context step_temporal_computation env
+        step_in_context step_computation env
           (fun red -> DoCtx red)
           (fun comp1' -> Ast.Do (comp1', comp2))
           comp1
@@ -232,7 +216,7 @@ and step_computation env = function
 
 type load_state = {
   environment : environment;
-  computations : Ast.temporal_computation list;
+  computations : Ast.computation list;
 }
 
 let initial_load_state =
@@ -259,9 +243,7 @@ let load_top_let load_state x expr =
     environment =
       {
         load_state.environment with
-        variables =
-          Ast.VariableContext.add_variable x expr
-            load_state.environment.variables;
+        variables = Ast.VariableContext.add_variable x expr load_state.environment.variables;
       };
   }
 
@@ -276,7 +258,7 @@ let run load_state = load_state
 
 let steps = function
   | { computations = []; _ } -> []
-  | { computations = (Ast.Return _, _) :: comps; environment } ->
+  | { computations = Ast.Return _ :: comps; environment } ->
       [
         {
           label = Return;
@@ -291,4 +273,4 @@ let steps = function
             next_state =
               (fun () -> { computations = comp' () :: comps; environment });
           })
-        (step_temporal_computation environment comp)
+        (step_computation environment comp)
