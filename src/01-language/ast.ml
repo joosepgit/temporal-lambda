@@ -71,9 +71,11 @@ let print_ty_params params ppf =
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> () (* Base case: empty list, do nothing *)
-    | [last] -> (* Single element case: print without trailing comma *)
+    | [ last ] ->
+        (* Single element case: print without trailing comma *)
         TyParam.print last ppf
-    | hd :: tl -> (* General case: print with trailing comma *)
+    | hd :: tl ->
+        (* General case: print with trailing comma *)
         TyParam.print hd ppf;
         Format.fprintf ppf ", ";
         print_helper tl
@@ -123,11 +125,13 @@ let print_variable_map map =
   let elements = VariableMap.bindings map in
   let rec print_elements = function
     | [] -> ()
-    | [entry] -> (* Last element: no trailing semicolon *)
+    | [ entry ] ->
+        (* Last element: no trailing semicolon *)
         Printf.printf "(";
         print_var_and_ty entry Format.std_formatter;
         Printf.printf ")"
-    | entry :: tl -> (* All other elements: add semicolon *)
+    | entry :: tl ->
+        (* All other elements: add semicolon *)
         Printf.printf "(";
         print_var_and_ty entry Format.std_formatter;
         Printf.printf "), ";
@@ -141,8 +145,7 @@ let print_variable_context ctx =
   VariableContext.print_contents print_var_and_ty ctx;
   Printf.printf "]\n"
 
-let add_dummy_nat_to_ctx nat ctx = 
-  VariableContext.add_temp nat ctx
+let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
 type variable = Variable.t
 type label = Label.t
@@ -172,19 +175,20 @@ type expression =
 
 and computation =
   | Return of expression
-  | Do of computation * abstraction
+  | Do of temporal_computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
-  | Delay of int * computation
+  | Delay of int * temporal_computation
 
-and abstraction = pattern * computation
+and temporal_computation = computation * int
+and abstraction = pattern * temporal_computation
 
 type ty_def = TySum of (label * ty option) list | TyInline of ty
 
 type command =
   | TyDef of (ty_param list * ty_name * ty_def) list
   | TopLet of variable * expression
-  | TopDo of computation
+  | TopDo of temporal_computation
 
 let rec print_pattern ?max_level p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -221,9 +225,9 @@ let rec print_expression ?max_level e ppf =
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
   | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
 
-and print_computation ?max_level c ppf =
+and print_computation ?max_level tc ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
-  match c with
+  match fst tc with
   | Return e -> print ~at_level:1 "return %t" (print_expression ~max_level:0 e)
   | Do (c1, (PNonbinding, c2)) ->
       print "@[<hov>%t;@ %t@]" (print_computation c1) (print_computation c2)
