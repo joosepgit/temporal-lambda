@@ -22,7 +22,7 @@ and plain_ty =
   | TyArrow of ty * plain_comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
 
-and plain_comp_ty = CompTy of ty * int
+and plain_comp_ty = CompTy of ty * int  (** [ty ! tau] *)
 
 type variable = string
 type label = string

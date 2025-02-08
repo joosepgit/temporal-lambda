@@ -177,26 +177,32 @@ and infer_computation state = function
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
-      let ty1', CompTy (ty2, tau2), eqs2 =
-        infer_abstraction state' (* TODO *) comp2
-      in
+      let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
       (CompTy (ty2, tau1 + tau2), ((ty1, ty1') :: eqs1) @ eqs2)
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
       and a = fresh_ty () in
-      (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
+      let tau =
+        match t1 with Ast.TyArrow (_, CompTy (_, tau')) -> tau' | _ -> 0
+      in
+      (CompTy (a, tau), ((t1, Ast.TyArrow (t2, CompTy (a, tau))) :: eqs1) @ eqs2)
   | Ast.Match (e, cases) ->
       let ty1, eqs = infer_expression state e and ty2 = fresh_ty () in
-      let fold eqs abs =
-        let ty1', ty2', eqs' = infer_abstraction state abs in
-        ((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs
+      let fold (eqs, first_tau) abs =
+        let ty1', CompTy (ty2', tau), eqs' = infer_abstraction state abs in
+        let new_tau =
+          match first_tau with None -> Some tau | Some t -> Some t
+        in
+        (((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs, new_tau)
       in
-      (ty2, List.fold_left fold eqs cases)
-  | Ast.Delay (n, comp) ->
-      let state' = extend_temporal state n in
-      let ty, eqs = infer_computation state' comp in
-      (ty, eqs)
+      let eqs_final, first_tau = List.fold_left fold (eqs, None) cases in
+      let tau = match first_tau with Some tau -> tau | None -> 0 in
+      (CompTy (ty2, tau), eqs_final)
+  | Ast.Delay (tau, comp) ->
+      let state' = extend_temporal state tau in
+      let CompTy (ty, tau'), eqs = infer_computation state' comp in
+      (CompTy (ty, tau + tau'), eqs)
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -215,7 +221,7 @@ let add_subst a t sbst = Ast.TyParamMap.add a (Ast.substitute_ty sbst t) sbst
 let rec occurs a = function
   | Ast.TyParam a' -> a = a'
   | Ast.TyConst _ -> false
-  | Ast.TyArrow (ty1, ty2) -> occurs a ty1 || occurs a ty2
+  | Ast.TyArrow (ty1, CompTy (ty2, _tau)) -> occurs a ty1 || occurs a ty2
   | Ast.TyApply (_, tys) -> List.exists (occurs a) tys
   | Ast.TyTuple tys -> List.exists (occurs a) tys
 
@@ -248,7 +254,9 @@ let rec unify state = function
   | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
     when List.length tys1 = List.length tys2 ->
       unify state (List.combine tys1 tys2 @ eqs)
-  | (Ast.TyArrow (t1, t1'), Ast.TyArrow (t2, t2')) :: eqs ->
+  | ( Ast.TyArrow (t1, CompTy (t1', _tau1')),
+      Ast.TyArrow (t2, CompTy (t2', _tau2')) )
+    :: eqs ->
       unify state ((t1, t2) :: (t1', t2') :: eqs)
   | (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
       add_subst a t
@@ -263,8 +271,9 @@ let rec unify state = function
         (Ast.print_ty print_param t2)
 
 let infer state e =
-  let t, eqs = infer_computation state e in
-  let sbst = unify state eqs in
+  let CompTy (t, tau), eqs = infer_computation state e in
+  let state' = extend_temporal state tau in
+  let sbst = unify state' eqs in
   let t' = Ast.substitute_ty sbst t in
   t'
 

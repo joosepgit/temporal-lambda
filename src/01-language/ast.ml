@@ -27,7 +27,7 @@ type ty =
   | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
 
-and comp_ty = CompTy of ty * int
+and comp_ty = CompTy of ty * int  (** [ty ! tau] *)
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
