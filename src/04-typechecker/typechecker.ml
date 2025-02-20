@@ -67,6 +67,10 @@ let fresh_ty () =
   let a = Ast.TyParam.fresh "ty" in
   Ast.TyParam a
 
+and fresh_comp_ty () =
+  let a = Ast.TyParam.fresh "comp_ty" in
+  Ast.CompTy (Ast.TyParam a, 0)
+
 let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
@@ -182,23 +186,16 @@ and infer_computation state = function
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
-      and a = fresh_ty () in
-      let tau =
-        match t1 with Ast.TyArrow (_, CompTy (_, tau')) -> tau' | _ -> 0
-      in
-      (CompTy (a, tau), ((t1, Ast.TyArrow (t2, CompTy (a, tau))) :: eqs1) @ eqs2)
+      and a = fresh_comp_ty () in
+      (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
   | Ast.Match (e, cases) ->
-      let ty1, eqs = infer_expression state e and ty2 = fresh_ty () in
-      let fold (eqs, first_tau) abs =
-        let ty1', CompTy (ty2', tau), eqs' = infer_abstraction state abs in
-        let new_tau =
-          match first_tau with None -> Some tau | Some t -> Some t
-        in
-        (((ty1, ty1') :: (ty2, ty2') :: eqs') @ eqs, new_tau)
+      let ty1, eqs = infer_expression state e and branch_comp_ty = fresh_comp_ty () in
+      let CompTy(branch_ty, _branch_tau) = branch_comp_ty in
+      let fold eqs abs =
+        let ty1', CompTy(branch_ty', _branch_tau'), eqs' = infer_abstraction state abs in
+        ((ty1, ty1') :: (branch_ty, branch_ty') :: eqs') @ eqs
       in
-      let eqs_final, first_tau = List.fold_left fold (eqs, None) cases in
-      let tau = match first_tau with Some tau -> tau | None -> 0 in
-      (CompTy (ty2, tau), eqs_final)
+      (branch_comp_ty, List.fold_left fold eqs cases)
   | Ast.Delay (tau, comp) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' comp in
