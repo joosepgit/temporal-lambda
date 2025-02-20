@@ -1,14 +1,24 @@
+module TauParamModule = Symbol.Make ()
+
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t) =
 struct
-  type 'a map_or_tau = VarMap of 'a VariableMap.t | Nat of int
+  type tau_param = TauParamModule.t
+
+  type tau =
+    | TauConst of int
+    | TauParam of tau_param
+    | TauAdd of tau * tau
+
+
+  type 'a map_or_tau = VarMap of 'a VariableMap.t | Tau of tau
   type 'a t = 'a map_or_tau list
 
   let empty : 'a t = []
 
-  (* Add a natural number to the end of the list in reverse order (by adding to the front) *)
-  let add_temp (n : int) (lst : 'a t) : 'a t = Nat n :: lst
+  (* Add a temporal value to the end of the list in reverse order (by adding to the front) *)
+  let add_temp (n : tau) (lst : 'a t) : 'a t = Tau n :: lst
 
   (* Add a variable to the last VariableMap or create a new one, in reverse order *)
   let add_variable (key : Variable.t) (value : 'a) (lst : 'a t) : 'a t =
@@ -34,7 +44,7 @@ struct
           | None ->
               find_in_maps rest (* Continue searching in the rest of the list *)
           )
-      | Nat _ :: rest -> find_in_maps rest (* Skip Nat elements *)
+      | Tau _ :: rest -> find_in_maps rest (* Skip Nat elements *)
     in
     find_in_maps lst
 
@@ -50,7 +60,7 @@ struct
           | None ->
               find_in_maps rest (* Continue searching in the rest of the list *)
           )
-      | Nat _ :: rest -> find_in_maps rest (* Skip Nat elements *)
+      | Tau _ :: rest -> find_in_maps rest (* Skip Nat elements *)
     in
     find_in_maps lst
 
@@ -79,8 +89,8 @@ struct
           print_elements elements;
           Printf.printf "}\n";
           print_list rest
-      | Nat n :: rest ->
-          Printf.printf "Nat %d\n" n;
+      | Tau _n :: rest ->
+          Printf.printf "Tau %d\n" 0; (* TODO: print_tau *)
           print_list rest
     in
     (* Reverse the list before printing *)

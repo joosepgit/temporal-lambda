@@ -44,7 +44,7 @@ let main () =
     run run_state;
     (* Display variable map contents with dummy nat value *)
     let vars_with_nat_ex =
-      Ast.add_dummy_nat_to_ctx 5 state'.typechecker.variables
+      Ast.add_dummy_nat_to_ctx (TauConst 5) state'.typechecker.variables
     in
     Ast.print_variable_context vars_with_nat_ex
   with Error.Error error ->

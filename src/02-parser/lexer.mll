@@ -69,12 +69,12 @@ let float =
 
 let operatorchar = ['!' '$' '%' '&' '*' '+' '-' '.' '/' ':' '.' '<' '=' '>' '?' '@' '^' '|' '~']
 
-let prefixop = ['~' '?' '!']             operatorchar*
-let infixop0 = ['=' '<' '>' '|' '&' '$'] operatorchar*
-let infixop1 = ['@' '^']                 operatorchar*
-let infixop2 = ['+' '-']                 operatorchar*
-let infixop3 = ['*' '/' '%']             operatorchar*
-let infixop4 = "**"                      operatorchar*
+let prefixop = ['~' '?' '!']                  operatorchar*
+let infixop0 = ['=' '<' '>' '|' '&' '$']  operatorchar*
+let infixop1 = ['@' '^']                      operatorchar*
+let infixop2 = ['+' '-']                      operatorchar*
+let infixop3 = ['*' '/' '%']                  operatorchar*
+let infixop4 = "**"                           operatorchar*
 
 rule token = parse
   | '\n'                { Lexing.new_line lexbuf; token lexbuf }
@@ -107,6 +107,7 @@ rule token = parse
   | "||"                { BARBAR }
   | ';'                 { SEMI }
   | "->"                { ARROW }
+  | '#'                 { HASH }
   | '='                 { EQUAL }
   | '*'                 { STAR }
   | '+'                 { PLUS }

@@ -1,4 +1,10 @@
 open Utils
+
+module Variable = Symbol.Make ()
+module VariableMap = Map.Make (Variable)
+module VariableContext = Context.Make (Variable) (Map.Make (Variable))
+module Label = Symbol.Make ()
+
 module TyName = Symbol.Make ()
 
 type ty_name = TyName.t
@@ -27,7 +33,7 @@ type ty =
   | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
 
-and comp_ty = CompTy of ty * int  (** [ty ! tau] *)
+and comp_ty = CompTy of ty * VariableContext.tau  (** [ty ! tau] *)
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -109,11 +115,6 @@ let rec free_vars = function
   | TyArrow (ty1, CompTy (ty2, _)) ->
       TyParamSet.union (free_vars ty1) (free_vars ty2)
 
-module Variable = Symbol.Make ()
-module VariableMap = Map.Make (Variable)
-module VariableContext = Context.Make (Variable) (Map.Make (Variable))
-module Label = Symbol.Make ()
-
 let print_var_and_ty (variable, (params, ty)) ppf =
   let pp = new_print_param () in
   Variable.print variable ppf;
@@ -181,7 +182,7 @@ and computation =
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
-  | Delay of int * computation
+  | Delay of VariableContext.tau * computation
 
 and abstraction = pattern * computation
 
@@ -243,7 +244,7 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
-  | Delay (n, c) -> print ~at_level:1 "delay %d %t" n (print_computation c)
+  | Delay (_n, c) -> print ~at_level:1 "delay %d %t" 0 (print_computation c) (* TODO print_tau *)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

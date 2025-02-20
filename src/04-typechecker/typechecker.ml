@@ -68,8 +68,9 @@ let fresh_ty () =
   Ast.TyParam a
 
 and fresh_comp_ty () =
-  let a = Ast.TyParam.fresh "comp_ty" in
-  Ast.CompTy (Ast.TyParam a, 0)
+  let a = Ast.TyParam.fresh "ty" in
+  let t = Context.TauParamModule.fresh "tau" in
+  Ast.CompTy (Ast.TyParam a, Ast.VariableContext.TauParam t)
 
 let extend_variables state vars =
   List.fold_left
@@ -177,12 +178,12 @@ let rec infer_expression state = function
 and infer_computation state = function
   | Ast.Return expr ->
       let ty, eqs = infer_expression state expr in
-      (Ast.CompTy (ty, 0), eqs)
+      (Ast.CompTy (ty, Ast.VariableContext.TauConst 0), eqs)
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
-      (CompTy (ty2, tau1 + tau2), ((ty1, ty1') :: eqs1) @ eqs2)
+      (CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)), ((ty1, ty1') :: eqs1) @ eqs2)
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
@@ -199,7 +200,7 @@ and infer_computation state = function
   | Ast.Delay (tau, comp) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' comp in
-      (CompTy (ty, tau + tau'), eqs)
+      (CompTy (ty, Ast.VariableContext.TauAdd (tau, tau')), eqs)
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
