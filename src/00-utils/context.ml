@@ -5,13 +5,7 @@ module Make
     (VariableMap : Map.S with type key = Variable.t) =
 struct
   type tau_param = TauParamModule.t
-
-  type tau =
-    | TauConst of int
-    | TauParam of tau_param
-    | TauAdd of tau * tau
-
-
+  type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
   type 'a map_or_tau = VarMap of 'a VariableMap.t | Tau of tau
   type 'a t = 'a map_or_tau list
 
@@ -90,7 +84,8 @@ struct
           Printf.printf "}\n";
           print_list rest
       | Tau _n :: rest ->
-          Printf.printf "Tau %d\n" 0; (* TODO: print_tau *)
+          Printf.printf "Tau %d\n" 0;
+          (* TODO: print_tau *)
           print_list rest
     in
     (* Reverse the list before printing *)

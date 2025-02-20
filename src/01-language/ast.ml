@@ -1,10 +1,8 @@
 open Utils
-
 module Variable = Symbol.Make ()
 module VariableMap = Map.Make (Variable)
 module VariableContext = Context.Make (Variable) (Map.Make (Variable))
 module Label = Symbol.Make ()
-
 module TyName = Symbol.Make ()
 
 type ty_name = TyName.t
@@ -244,7 +242,8 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
-  | Delay (_n, c) -> print ~at_level:1 "delay %d %t" 0 (print_computation c) (* TODO print_tau *)
+  | Delay (_n, c) -> print ~at_level:1 "delay %d %t" 0 (print_computation c)
+(* TODO print_tau *)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

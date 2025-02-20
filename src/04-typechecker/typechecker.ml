@@ -183,17 +183,21 @@ and infer_computation state = function
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
-      (CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)), ((ty1, ty1') :: eqs1) @ eqs2)
+      ( CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)),
+        ((ty1, ty1') :: eqs1) @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
       and a = fresh_comp_ty () in
       (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
   | Ast.Match (e, cases) ->
-      let ty1, eqs = infer_expression state e and branch_comp_ty = fresh_comp_ty () in
-      let CompTy(branch_ty, _branch_tau) = branch_comp_ty in
+      let ty1, eqs = infer_expression state e
+      and branch_comp_ty = fresh_comp_ty () in
+      let (CompTy (branch_ty, _branch_tau)) = branch_comp_ty in
       let fold eqs abs =
-        let ty1', CompTy(branch_ty', _branch_tau'), eqs' = infer_abstraction state abs in
+        let ty1', CompTy (branch_ty', _branch_tau'), eqs' =
+          infer_abstraction state abs
+        in
         ((ty1, ty1') :: (branch_ty, branch_ty') :: eqs') @ eqs
       in
       (branch_comp_ty, List.fold_left fold eqs cases)
