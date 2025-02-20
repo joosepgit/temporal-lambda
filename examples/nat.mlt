@@ -23,5 +23,5 @@ let rec from_int n =
 run
   let six = from_int 6 in
   let seven = Succ six in
-  let forty_two = multiply six seven in
-  to_int forty_two
+  delay 4 (let forty_two = multiply six seven in
+  delay 1 (to_int forty_two))

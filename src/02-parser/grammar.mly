@@ -14,9 +14,10 @@
 %token <float> FLOAT
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
-%token TYPE ARROW OF
+%token TYPE ARROW OF HASH
 %token MATCH WITH FUNCTION
 %token RUN LET REC AND IN
+%token DELAY
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -90,6 +91,8 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | t = plain_comma_term
     { t }
+  | DELAY d = INT t = plain_comma_term
+    { ignore d; t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:
@@ -363,8 +366,8 @@ defined_ty:
 
 ty: mark_position(plain_ty) { $1 }
 plain_ty:
-  | t1 = ty_apply ARROW t2 = ty
-    { TyArrow (t1, t2) }
+  | t1 = ty_apply ARROW t2 = ty HASH tau = INT
+    { TyArrow (t1, CompTy (t2, tau)) }
   | t = plain_prod_ty
     { t }
 

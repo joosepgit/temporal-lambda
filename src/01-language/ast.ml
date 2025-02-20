@@ -1,4 +1,8 @@
 open Utils
+module Variable = Symbol.Make ()
+module VariableMap = Map.Make (Variable)
+module VariableContext = Context.Make (Variable) (Map.Make (Variable))
+module Label = Symbol.Make ()
 module TyName = Symbol.Make ()
 
 type ty_name = TyName.t
@@ -24,8 +28,10 @@ type ty =
   | TyConst of Const.ty
   | TyApply of ty_name * ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
   | TyParam of ty_param  (** ['a] *)
-  | TyArrow of ty * ty  (** [ty1 -> ty2] *)
+  | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
+
+and comp_ty = CompTy of ty * VariableContext.tau  (** [ty ! tau] *)
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -41,7 +47,7 @@ let rec print_ty ?max_level print_param p ppf =
         (Print.print_tuple (print_ty print_param) tys)
         (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
-  | TyArrow (ty1, ty2) ->
+  | TyArrow (ty1, CompTy (ty2, _)) ->
       print ~at_level:3 "%t → %t"
         (print_ty ~max_level:2 print_param ty1)
         (print_ty ~max_level:3 print_param ty2)
@@ -67,9 +73,21 @@ let new_print_param () =
   in
   print_param
 
-let print_ty_scheme (_params, ty) ppf =
-  let print_param = new_print_param () in
-  Print.print ppf "@[%t@]" (print_ty print_param ty)
+let print_ty_params params ppf =
+  Format.fprintf ppf "[";
+  let rec print_helper = function
+    | [] -> () (* Base case: empty list, do nothing *)
+    | [ last ] ->
+        (* Single element case: print without trailing comma *)
+        TyParam.print last ppf
+    | hd :: tl ->
+        (* General case: print with trailing comma *)
+        TyParam.print hd ppf;
+        Format.fprintf ppf ", ";
+        print_helper tl
+  in
+  print_helper params;
+  Format.fprintf ppf "]"
 
 let rec substitute_ty subst = function
   | TyConst _ as ty -> ty
@@ -78,8 +96,8 @@ let rec substitute_ty subst = function
   | TyApply (ty_name, tys) ->
       TyApply (ty_name, List.map (substitute_ty subst) tys)
   | TyTuple tys -> TyTuple (List.map (substitute_ty subst) tys)
-  | TyArrow (ty1, ty2) ->
-      TyArrow (substitute_ty subst ty1, substitute_ty subst ty2)
+  | TyArrow (ty1, CompTy (ty2, tau)) ->
+      TyArrow (substitute_ty subst ty1, CompTy (substitute_ty subst ty2, tau))
 
 let rec free_vars = function
   | TyConst _ -> TyParamSet.empty
@@ -92,11 +110,44 @@ let rec free_vars = function
       List.fold_left
         (fun vars ty -> TyParamSet.union vars (free_vars ty))
         TyParamSet.empty tys
-  | TyArrow (ty1, ty2) -> TyParamSet.union (free_vars ty1) (free_vars ty2)
+  | TyArrow (ty1, CompTy (ty2, _)) ->
+      TyParamSet.union (free_vars ty1) (free_vars ty2)
 
-module Variable = Symbol.Make ()
-module VariableMap = Map.Make (Variable)
-module Label = Symbol.Make ()
+let print_var_and_ty (variable, (params, ty)) ppf =
+  let pp = new_print_param () in
+  Variable.print variable ppf;
+  Format.fprintf ppf " -> ";
+  print_ty_params params ppf;
+  Format.fprintf ppf ", ";
+  Print.print ppf "@[%t@]" (print_ty pp ty);
+  Format.pp_print_flush ppf ()
+
+let print_variable_map map =
+  Printf.printf "VariableMap: {\n";
+  let elements = VariableMap.bindings map in
+  let rec print_elements = function
+    | [] -> ()
+    | [ entry ] ->
+        (* Last element: no trailing semicolon *)
+        Printf.printf "(";
+        print_var_and_ty entry Format.std_formatter;
+        Printf.printf ")"
+    | entry :: tl ->
+        (* All other elements: add semicolon *)
+        Printf.printf "(";
+        print_var_and_ty entry Format.std_formatter;
+        Printf.printf "), ";
+        print_elements tl
+  in
+  print_elements elements;
+  Printf.printf " \n}\n"
+
+let print_variable_context ctx =
+  Printf.printf "VariableContext: [\n";
+  VariableContext.print_contents print_var_and_ty ctx;
+  Printf.printf "]\n"
+
+let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
 type variable = Variable.t
 type label = Label.t
@@ -129,6 +180,7 @@ and computation =
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
+  | Delay of VariableContext.tau * computation
 
 and abstraction = pattern * computation
 
@@ -190,6 +242,8 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
+  | Delay (_n, c) -> print ~at_level:1 "delay %d %t" 0 (print_computation c)
+(* TODO print_tau *)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

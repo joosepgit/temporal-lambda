@@ -19,8 +19,10 @@ and plain_ty =
   | TyConst of Language.Const.ty
   | TyApply of ty_name * ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
   | TyParam of ty_param  (** ['a] *)
-  | TyArrow of ty * ty  (** [ty1 -> ty2] *)
+  | TyArrow of ty * plain_comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
+
+and plain_comp_ty = CompTy of ty * int  (** [ty ! tau] *)
 
 type variable = string
 type label = string
