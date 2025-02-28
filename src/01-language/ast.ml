@@ -47,10 +47,11 @@ let rec print_ty ?max_level print_param p ppf =
         (Print.print_tuple (print_ty print_param) tys)
         (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
-  | TyArrow (ty1, CompTy (ty2, _)) ->
-      print ~at_level:3 "%t → %t"
+  | TyArrow (ty1, CompTy (ty2, tau)) ->
+      print ~at_level:3 "%t → %t # %t"
         (print_ty ~max_level:2 print_param ty1)
         (print_ty ~max_level:3 print_param ty2)
+        (VariableContext.print_tau tau)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
       print ~at_level:2 "%t"
@@ -121,26 +122,6 @@ let print_var_and_ty (variable, (params, ty)) ppf =
   Format.fprintf ppf ", ";
   Print.print ppf "@[%t@]" (print_ty pp ty);
   Format.pp_print_flush ppf ()
-
-let print_variable_map map =
-  Printf.printf "VariableMap: {\n";
-  let elements = VariableMap.bindings map in
-  let rec print_elements = function
-    | [] -> ()
-    | [ entry ] ->
-        (* Last element: no trailing semicolon *)
-        Printf.printf "(";
-        print_var_and_ty entry Format.std_formatter;
-        Printf.printf ")"
-    | entry :: tl ->
-        (* All other elements: add semicolon *)
-        Printf.printf "(";
-        print_var_and_ty entry Format.std_formatter;
-        Printf.printf "), ";
-        print_elements tl
-  in
-  print_elements elements;
-  Printf.printf " \n}\n"
 
 let print_variable_context ctx =
   Printf.printf "VariableContext: [\n";
@@ -242,7 +223,10 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
-  | Delay (_n, c) -> print ~at_level:1 "delay %d %t" 0 (print_computation c)
+  | Delay (n, c) ->
+      print ~at_level:1 "delay %t %t"
+        (VariableContext.print_tau n)
+        (print_computation c)
 (* TODO print_tau *)
 
 and print_abstraction (p, c) ppf =
