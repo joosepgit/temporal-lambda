@@ -60,10 +60,10 @@ and desugar_plain_ty ~loc state = function
   | Sugared.TyParam ty_param ->
       let ty_param' = lookup_ty_param ~loc state ty_param in
       Untyped.TyParam ty_param'
-  | Sugared.TyArrow (ty1, ty2) ->
+  | Sugared.TyArrow (ty1, CompTy (ty2, tau)) ->
       let ty1' = desugar_ty state ty1 in
       let ty2' = desugar_ty state ty2 in
-      Untyped.TyArrow (ty1', ty2')
+      Untyped.TyArrow (ty1', CompTy (ty2', TauConst tau))
   | Sugared.TyTuple tys ->
       let tys' = List.map (desugar_ty state) tys in
       Untyped.TyTuple tys'
