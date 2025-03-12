@@ -118,7 +118,7 @@ let rec infer_pattern state = function
       (ty, (x, ty) :: vars, eqs)
   | Ast.PAnnotated (pat, ty) ->
       let ty', vars, eqs = infer_pattern state pat in
-      (ty, vars, (ty, ty') :: eqs)
+      (ty, vars, Either.Left (ty, ty') :: eqs)
   | Ast.PConst c -> (Ast.TyConst (Const.infer_ty c), [], [])
   | Ast.PNonbinding ->
       let ty = fresh_ty () in
@@ -136,7 +136,7 @@ let rec infer_pattern state = function
       | None, None -> (ty_out, [], [])
       | Some ty_in, Some pat ->
           let ty, vars, eqs = infer_pattern state pat in
-          (ty_out, vars, (ty_in, ty) :: eqs)
+          (ty_out, vars, Either.Left (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch")
 
@@ -148,7 +148,7 @@ let rec infer_expression state = function
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
       let ty', eqs = infer_expression state expr in
-      (ty, (ty, ty') :: eqs)
+      (ty, Either.Left (ty, ty') :: eqs)
   | Ast.Tuple exprs ->
       let fold expr (tys, eqs) =
         let ty', eqs' = infer_expression state expr in
@@ -164,14 +164,14 @@ let rec infer_expression state = function
       let state' = extend_variables state [ (f, f_ty) ] in
       let ty, ty', eqs = infer_abstraction state' abs in
       let out_ty = Ast.TyArrow (ty, ty') in
-      (out_ty, (f_ty, out_ty) :: eqs)
+      (out_ty, Either.Left (f_ty, out_ty) :: eqs)
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
       | None, None -> (ty_out, [])
       | Some ty_in, Some expr ->
           let ty, eqs = infer_expression state expr in
-          (ty_out, (ty_in, ty) :: eqs)
+          (ty_out, Either.Left (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch")
 
@@ -184,21 +184,25 @@ and infer_computation state = function
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
       ( CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)),
-        ((ty1, ty1') :: eqs1) @ eqs2 )
+        (Either.Left (ty1, ty1') :: Either.Right (tau1, tau2) :: eqs1) @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
       and a = fresh_comp_ty () in
-      (a, ((t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
+      (a, (Either.Left (t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
   | Ast.Match (e, cases) ->
       let ty1, eqs = infer_expression state e
       and branch_comp_ty = fresh_comp_ty () in
-      let (CompTy (branch_ty, _branch_tau)) = branch_comp_ty in
+      let (CompTy (branch_ty, branch_tau)) = branch_comp_ty in
       let fold eqs abs =
-        let ty1', CompTy (branch_ty', _branch_tau'), eqs' =
+        let ty1', CompTy (branch_ty', branch_tau'), eqs' =
           infer_abstraction state abs
         in
-        ((ty1, ty1') :: (branch_ty, branch_ty') :: eqs') @ eqs
+        Either.Left (ty1, ty1')
+        :: Either.Left (branch_ty, branch_ty')
+        :: Either.Right (branch_tau, branch_tau')
+        :: eqs'
+        @ eqs
       in
       (branch_comp_ty, List.fold_left fold eqs cases)
   | Ast.Delay (tau, comp) ->
@@ -213,8 +217,10 @@ and infer_abstraction state (pat, comp) =
   (ty, ty', eqs @ eqs')
 
 let subst_equations sbst =
-  let subst_equation (t1, t2) =
-    (Ast.substitute_ty sbst t1, Ast.substitute_ty sbst t2)
+  let subst_equation = function
+    | Either.Left (t1, t2) ->
+        Either.Left (Ast.substitute_ty sbst t1, Ast.substitute_ty sbst t2)
+    | Either.Right (tau1, tau2) -> Either.Right (tau1, tau2)
   in
   List.map subst_equation
 
@@ -241,34 +247,86 @@ let unfold state ty_name args =
       in
       Ast.substitute_ty subst ty
 
+let rec simplify_tau tau =
+  match tau with
+  | Ast.VariableContext.TauAdd
+      (Ast.VariableContext.TauConst c1, Ast.VariableContext.TauConst c2) ->
+      Ast.VariableContext.TauConst (c1 + c2)
+  | Ast.VariableContext.TauAdd (Ast.VariableContext.TauConst 0, t)
+  | Ast.VariableContext.TauAdd (t, Ast.VariableContext.TauConst 0) ->
+      simplify_tau t
+  | Ast.VariableContext.TauAdd (t1, t2) -> (
+      let t1' = simplify_tau t1 in
+      let t2' = simplify_tau t2 in
+      match (t1', t2') with
+      | Ast.VariableContext.TauConst c1, Ast.VariableContext.TauConst c2 ->
+          Ast.VariableContext.TauConst (c1 + c2)
+      | Ast.VariableContext.TauConst 0, t | t, Ast.VariableContext.TauConst 0 ->
+          t
+      | _ -> Ast.VariableContext.TauAdd (t1', t2')
+      (* Keep symbolic form *))
+  | _ -> tau (* Keep symbolic values like TauParam unchanged *)
+
 let rec unify state = function
   | [] -> Ast.TyParamMap.empty
-  | (t1, t2) :: eqs when t1 = t2 -> unify state eqs
-  | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: eqs
+  | Either.Left (t1, t2) :: eqs when t1 = t2 -> unify state eqs
+  | Either.Right (tau1, tau2) :: eqs -> (
+      let tau1' = simplify_tau tau1 in
+      let tau2' = simplify_tau tau2 in
+      match (tau1', tau2') with
+      | Ast.VariableContext.TauParam p1, Ast.VariableContext.TauParam p2
+        when p1 = p2 ->
+          unify state eqs
+      | Ast.VariableContext.TauParam p, t | t, Ast.VariableContext.TauParam p ->
+          (* Substitution or constraint? *)
+          let print_param = Ast.new_print_param () in
+          Error.typing "Cannot unify temporal values %t = %t"
+            (fun ppf ->
+              Ast.VariableContext.print_tau print_param
+                (Ast.VariableContext.TauParam p) ppf)
+            (fun ppf -> Ast.VariableContext.print_tau print_param t ppf)
+      | _ when tau1' = tau2' ->
+          unify state eqs (* Compare simplified versions *)
+      | _ ->
+          let print_param = Ast.new_print_param () in
+          Error.typing "Cannot unify temporal values %t = %t"
+            (fun ppf -> Ast.VariableContext.print_tau print_param tau1 ppf)
+            (fun ppf -> Ast.VariableContext.print_tau print_param tau2 ppf))
+  | Either.Left (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2))
+    :: eqs
     when ty_name1 = ty_name2 ->
-      unify state (List.combine args1 args2 @ eqs)
-  | (Ast.TyApply (ty_name, args), ty) :: eqs
+      let new_eqs =
+        List.map
+          (fun (t1, t2) -> Either.Left (t1, t2))
+          (List.combine args1 args2)
+      in
+      unify state (new_eqs @ eqs)
+  | Either.Left (Ast.TyApply (ty_name, args), ty) :: eqs
     when is_transparent_type state ty_name ->
-      unify state ((unfold state ty_name args, ty) :: eqs)
-  | (ty, Ast.TyApply (ty_name, args)) :: eqs
+      unify state (Either.Left (unfold state ty_name args, ty) :: eqs)
+  | Either.Left (ty, Ast.TyApply (ty_name, args)) :: eqs
     when is_transparent_type state ty_name ->
-      unify state ((ty, unfold state ty_name args) :: eqs)
-  | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
+      unify state (Either.Left (ty, unfold state ty_name args) :: eqs)
+  | Either.Left (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
     when List.length tys1 = List.length tys2 ->
-      unify state (List.combine tys1 tys2 @ eqs)
-  | ( Ast.TyArrow (t1, CompTy (t1', _tau1')),
-      Ast.TyArrow (t2, CompTy (t2', _tau2')) )
+      let new_eqs =
+        List.map (fun (t1, t2) -> Either.Left (t1, t2)) (List.combine tys1 tys2)
+      in
+      unify state (new_eqs @ eqs)
+  | Either.Left
+      ( Ast.TyArrow (t1, CompTy (t1', _tau1')),
+        Ast.TyArrow (t2, CompTy (t2', _tau2')) )
     :: eqs ->
-      unify state ((t1, t2) :: (t1', t2') :: eqs)
-  | (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
+      unify state (Either.Left (t1, t2) :: Either.Left (t1', t2') :: eqs)
+  | Either.Left (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
       add_subst a t
         (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
-  | (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
+  | Either.Left (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
       add_subst a t
         (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
-  | (t1, t2) :: _ ->
+  | Either.Left (t1, t2) :: _ ->
       let print_param = Ast.new_print_param () in
-      Error.typing "Cannot unify %t = %t"
+      Error.typing "Cannot unify types %t = %t"
         (Ast.print_ty print_param t1)
         (Ast.print_ty print_param t2)
 

@@ -58,17 +58,18 @@ struct
     in
     find_in_maps lst
 
-  (* Print a tau abstractions *)
-  let rec print_tau tau ppf =
-    (match tau with
+  (* Print tau abstractions *)
+  let rec print_tau print_param tau ppf =
+    match tau with
     | TauConst i -> Format.fprintf ppf "TauConst(%d)" i
     | TauParam p -> Format.fprintf ppf "TauParam(%t)" (TauParamModule.print p)
     | TauAdd (t1, t2) ->
-        Format.fprintf ppf "TauAdd(@[%t, %t@])" (print_tau t1) (print_tau t2));
-    Format.pp_print_flush ppf ()
+        Format.fprintf ppf "TauAdd(@[%t, %t@])"
+          (fun ppf -> print_tau print_param t1 ppf)
+          (fun ppf -> print_tau print_param t2 ppf)
 
   (* Print the contents of the list, reversing it before printing *)
-  let print_contents print_var_and_ty lst =
+  let print_contents print_param print_var_and_ty lst =
     let rec print_list lst ppf =
       match lst with
       | [] -> ()
@@ -86,7 +87,7 @@ struct
           Printf.printf "}\n";
           print_list rest ppf
       | Tau n :: rest ->
-          print_tau n ppf;
+          print_tau print_param n ppf;
           Printf.printf "\n";
           print_list rest ppf
     in

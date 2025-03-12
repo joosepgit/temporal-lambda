@@ -48,10 +48,10 @@ let rec print_ty ?max_level print_param p ppf =
         (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
   | TyArrow (ty1, CompTy (ty2, tau)) ->
-      print ~at_level:3 "%t → %t # %t"
+      print ~at_level:3 "(%t → %t # %t)"
         (print_ty ~max_level:2 print_param ty1)
         (print_ty ~max_level:3 print_param ty2)
-        (VariableContext.print_tau tau)
+        (VariableContext.print_tau print_param tau)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
       print ~at_level:2 "%t"
@@ -125,7 +125,8 @@ let print_var_and_ty (variable, (params, ty)) ppf =
 
 let print_variable_context ctx =
   Printf.printf "VariableContext: [\n";
-  VariableContext.print_contents print_var_and_ty ctx;
+  let print_param = new_print_param () in
+  VariableContext.print_contents print_param print_var_and_ty ctx;
   Printf.printf "]\n"
 
 let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
@@ -224,10 +225,10 @@ and print_computation ?max_level c ppf =
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
   | Delay (n, c) ->
+      let print_param = new_print_param () in
       print ~at_level:1 "delay %t %t"
-        (VariableContext.print_tau n)
+        (VariableContext.print_tau print_param n)
         (print_computation c)
-(* TODO print_tau *)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)
