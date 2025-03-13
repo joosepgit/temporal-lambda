@@ -1,4 +1,5 @@
 module TauParamModule = Symbol.Make ()
+module TauParamMap = Map.Make (TauParamModule)
 
 module Make
     (Variable : Symbol.S)

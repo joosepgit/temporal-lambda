@@ -90,15 +90,29 @@ let print_ty_params params ppf =
   print_helper params;
   Format.fprintf ppf "]"
 
-let rec substitute_ty subst = function
+let rec substitute_tau subst = function
+  | VariableContext.TauConst _ as tau -> tau
+  | VariableContext.TauParam tp as tau -> (
+      match Context.TauParamMap.find_opt tp subst with
+      | None -> tau
+      | Some tau' -> tau')
+  | VariableContext.TauAdd (tau, tau') ->
+      VariableContext.TauAdd
+        (substitute_tau subst tau, substitute_tau subst tau')
+
+let rec substitute_ty ty_subst tau_subst = function
   | TyConst _ as ty -> ty
   | TyParam a as ty -> (
-      match TyParamMap.find_opt a subst with None -> ty | Some ty' -> ty')
+      match TyParamMap.find_opt a ty_subst with None -> ty | Some ty' -> ty')
   | TyApply (ty_name, tys) ->
-      TyApply (ty_name, List.map (substitute_ty subst) tys)
-  | TyTuple tys -> TyTuple (List.map (substitute_ty subst) tys)
+      TyApply (ty_name, List.map (substitute_ty ty_subst tau_subst) tys)
+  | TyTuple tys -> TyTuple (List.map (substitute_ty ty_subst tau_subst) tys)
   | TyArrow (ty1, CompTy (ty2, tau)) ->
-      TyArrow (substitute_ty subst ty1, CompTy (substitute_ty subst ty2, tau))
+      TyArrow
+        ( substitute_ty ty_subst tau_subst ty1,
+          CompTy
+            (substitute_ty ty_subst tau_subst ty2, substitute_tau tau_subst tau)
+        )
 
 let rec free_vars = function
   | TyConst _ -> TyParamSet.empty

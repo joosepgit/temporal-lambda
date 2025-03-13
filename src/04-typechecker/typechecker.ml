@@ -67,10 +67,11 @@ let fresh_ty () =
   let a = Ast.TyParam.fresh "ty" in
   Ast.TyParam a
 
-and fresh_comp_ty () =
-  let a = Ast.TyParam.fresh "ty" in
+let fresh_tau () =
   let t = Context.TauParamModule.fresh "tau" in
-  Ast.CompTy (Ast.TyParam a, Ast.VariableContext.TauParam t)
+  Ast.VariableContext.TauParam t
+
+let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_tau ())
 
 let extend_variables state vars =
   List.fold_left
@@ -92,6 +93,13 @@ let refreshing_subst params =
       Ast.TyParamMap.add param ty subst)
     Ast.TyParamMap.empty params
 
+let refreshing_tau_subst params =
+  List.fold_left
+    (fun subst param ->
+      let tau = fresh_tau () in
+      Context.TauParamMap.add param tau subst)
+    Context.TauParamMap.empty params
+
 let infer_variant state lbl =
   let rec find = function
     | [] -> assert false
@@ -105,8 +113,9 @@ let infer_variant state lbl =
     find (Ast.TyNameMap.bindings state.type_definitions)
   in
   let subst = refreshing_subst params in
+  let tau_subst = refreshing_tau_subst [] in
   let args = List.map (fun param -> Ast.TyParamMap.find param subst) params
-  and ty' = Option.map (Ast.substitute_ty subst) ty in
+  and ty' = Option.map (Ast.substitute_ty subst tau_subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
 let rec infer_pattern state = function
@@ -144,6 +153,7 @@ let rec infer_expression state = function
   | Ast.Var x ->
       let params, ty = Ast.VariableContext.find_variable x state.variables in
       let subst = refreshing_subst params in
+      let tau_subst = refreshing_tau_subst [] in
       (Ast.substitute_ty subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
@@ -216,22 +226,35 @@ and infer_abstraction state (pat, comp) =
   let ty', eqs' = infer_computation state' comp in
   (ty, ty', eqs @ eqs')
 
-let subst_equations sbst =
+let subst_equations ty_subst tau_subst =
   let subst_equation = function
     | Either.Left (t1, t2) ->
-        Either.Left (Ast.substitute_ty sbst t1, Ast.substitute_ty sbst t2)
-    | Either.Right (tau1, tau2) -> Either.Right (tau1, tau2)
+        Either.Left
+          ( Ast.substitute_ty ty_subst tau_subst t1,
+            Ast.substitute_ty ty_subst tau_subst t2 )
+    | Either.Right (tau1, tau2) ->
+        Either.Right
+          (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
   in
   List.map subst_equation
 
 let add_subst a t sbst = Ast.TyParamMap.add a (Ast.substitute_ty sbst t) sbst
 
-let rec occurs a = function
+let add_tau_subst tp tau tau_subst =
+  Context.TauParamMap.add tp (Ast.substitute_tau tau_subst tau) tau_subst
+
+let rec occurs_ty a = function
   | Ast.TyParam a' -> a = a'
   | Ast.TyConst _ -> false
-  | Ast.TyArrow (ty1, CompTy (ty2, _tau)) -> occurs a ty1 || occurs a ty2
-  | Ast.TyApply (_, tys) -> List.exists (occurs a) tys
-  | Ast.TyTuple tys -> List.exists (occurs a) tys
+  | Ast.TyArrow (ty1, CompTy (ty2, _tau)) -> occurs_ty a ty1 || occurs_ty a ty2
+  | Ast.TyApply (_, tys) -> List.exists (occurs_ty a) tys
+  | Ast.TyTuple tys -> List.exists (occurs_ty a) tys
+
+let rec occurs_tau a = function
+  | Ast.VariableContext.TauParam a' -> a = a'
+  | Ast.VariableContext.TauConst _ -> false
+  | Ast.VariableContext.TauAdd (tau, tau') ->
+      occurs_tau a tau || occurs_tau a tau'
 
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -268,7 +291,7 @@ let rec simplify_tau tau =
   | _ -> tau (* Keep symbolic values like TauParam unchanged *)
 
 let rec unify state = function
-  | [] -> Ast.TyParamMap.empty
+  | [] -> (Ast.TyParamMap.empty, Context.TauParamMap.empty)
   | Either.Left (t1, t2) :: eqs when t1 = t2 -> unify state eqs
   | Either.Right (tau1, tau2) :: eqs -> (
       let tau1' = simplify_tau tau1 in
@@ -277,14 +300,22 @@ let rec unify state = function
       | Ast.VariableContext.TauParam p1, Ast.VariableContext.TauParam p2
         when p1 = p2 ->
           unify state eqs
-      | Ast.VariableContext.TauParam p, t | t, Ast.VariableContext.TauParam p ->
-          (* Substitution or constraint? *)
-          let print_param = Ast.new_print_param () in
-          Error.typing "Cannot unify temporal values %t = %t"
-            (fun ppf ->
-              Ast.VariableContext.print_tau print_param
-                (Ast.VariableContext.TauParam p) ppf)
-            (fun ppf -> Ast.VariableContext.print_tau print_param t ppf)
+      | Ast.VariableContext.TauParam tp, tau when not (occurs_tau tp tau) ->
+          let ty_subst, tau_subst =
+            unify state
+              (subst_equations Ast.TyParamMap.empty
+                 (Context.TauParamMap.singleton tp tau)
+                 eqs)
+          in
+          (ty_subst, add_tau_subst tp tau tau_subst)
+      | tau, Ast.VariableContext.TauParam tp when not (occurs_tau tp tau) ->
+          let ty_subst, tau_subst =
+            unify state
+              (subst_equations Ast.TyParamMap.empty
+                 (Context.TauParamMap.singleton tp tau)
+                 eqs)
+          in
+          (ty_subst, add_tau_subst tp tau tau_subst)
       | _ when tau1' = tau2' ->
           unify state eqs (* Compare simplified versions *)
       | _ ->
@@ -318,12 +349,22 @@ let rec unify state = function
         Ast.TyArrow (t2, CompTy (t2', _tau2')) )
     :: eqs ->
       unify state (Either.Left (t1, t2) :: Either.Left (t1', t2') :: eqs)
-  | Either.Left (Ast.TyParam a, t) :: eqs when not (occurs a t) ->
-      add_subst a t
-        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
-  | Either.Left (t, Ast.TyParam a) :: eqs when not (occurs a t) ->
-      add_subst a t
-        (unify state (subst_equations (Ast.TyParamMap.singleton a t) eqs))
+  | Either.Left (Ast.TyParam a, t) :: eqs when not (occurs_ty a t) ->
+      let ty_subst, tau_subst =
+        unify state
+          (subst_equations
+             (Ast.TyParamMap.singleton a t)
+             Context.TauParamMap.empty eqs)
+      in
+      (add_subst a t ty_subst, tau_subst)
+  | Either.Left (t, Ast.TyParam a) :: eqs when not (occurs_ty a t) ->
+      let ty_subst, tau_subst =
+        unify state
+          (subst_equations
+             (Ast.TyParamMap.singleton a t)
+             Context.TauParamMap.empty eqs)
+      in
+      (add_subst a t ty_subst, tau_subst)
   | Either.Left (t1, t2) :: _ ->
       let print_param = Ast.new_print_param () in
       Error.typing "Cannot unify types %t = %t"
@@ -333,8 +374,8 @@ let rec unify state = function
 let infer state e =
   let CompTy (t, tau), eqs = infer_computation state e in
   let state' = extend_temporal state tau in
-  let sbst = unify state' eqs in
-  let t' = Ast.substitute_ty sbst t in
+  let ty_subst, _tau_subst = unify state' eqs in
+  let t' = Ast.substitute_ty ty_subst t in
   t'
 
 let add_external_function x ty_sch state =
@@ -345,8 +386,8 @@ let add_external_function x ty_sch state =
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in
-  let subst = unify state eqs in
-  let ty' = Ast.substitute_ty subst ty in
+  let ty_subst, _tau_subst = unify state eqs in
+  let ty' = Ast.substitute_ty ty_subst ty in
   let free_vars = Ast.free_vars ty' |> Ast.TyParamSet.elements in
   let ty_sch = (free_vars, ty') in
   add_external_function x ty_sch state
