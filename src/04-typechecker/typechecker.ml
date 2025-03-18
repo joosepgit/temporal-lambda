@@ -152,9 +152,9 @@ let rec infer_pattern state = function
 let rec infer_expression state = function
   | Ast.Var x ->
       let params, ty = Ast.VariableContext.find_variable x state.variables in
-      let subst = refreshing_subst params in
+      let ty_subst = refreshing_subst params in
       let tau_subst = refreshing_tau_subst [] in
-      (Ast.substitute_ty subst ty, [])
+      (Ast.substitute_ty ty_subst tau_subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
       let ty', eqs = infer_expression state expr in
@@ -238,7 +238,9 @@ let subst_equations ty_subst tau_subst =
   in
   List.map subst_equation
 
-let add_subst a t sbst = Ast.TyParamMap.add a (Ast.substitute_ty sbst t) sbst
+let add_ty_subst a ty ty_sbst =
+  let tau_subst = refreshing_tau_subst [] in
+  Ast.TyParamMap.add a (Ast.substitute_ty ty_sbst tau_subst ty) ty_sbst
 
 let add_tau_subst tp tau tau_subst =
   Context.TauParamMap.add tp (Ast.substitute_tau tau_subst tau) tau_subst
@@ -265,19 +267,14 @@ let unfold state ty_name args =
   match Ast.TyNameMap.find ty_name state.type_definitions with
   | _, Ast.TySum _ -> assert false
   | params, Ast.TyInline ty ->
-      let subst =
+      let ty_subst =
         List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
       in
-      Ast.substitute_ty subst ty
+      let tau_subst = refreshing_tau_subst [] in
+      Ast.substitute_ty ty_subst tau_subst ty
 
 let rec simplify_tau tau =
   match tau with
-  | Ast.VariableContext.TauAdd
-      (Ast.VariableContext.TauConst c1, Ast.VariableContext.TauConst c2) ->
-      Ast.VariableContext.TauConst (c1 + c2)
-  | Ast.VariableContext.TauAdd (Ast.VariableContext.TauConst 0, t)
-  | Ast.VariableContext.TauAdd (t, Ast.VariableContext.TauConst 0) ->
-      simplify_tau t
   | Ast.VariableContext.TauAdd (t1, t2) -> (
       let t1' = simplify_tau t1 in
       let t2' = simplify_tau t2 in
@@ -286,9 +283,8 @@ let rec simplify_tau tau =
           Ast.VariableContext.TauConst (c1 + c2)
       | Ast.VariableContext.TauConst 0, t | t, Ast.VariableContext.TauConst 0 ->
           t
-      | _ -> Ast.VariableContext.TauAdd (t1', t2')
-      (* Keep symbolic form *))
-  | _ -> tau (* Keep symbolic values like TauParam unchanged *)
+      | _ -> Ast.VariableContext.TauAdd (t1', t2'))
+  | _ -> tau
 
 let rec unify state = function
   | [] -> (Ast.TyParamMap.empty, Context.TauParamMap.empty)
@@ -316,6 +312,15 @@ let rec unify state = function
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
+      | ( Ast.VariableContext.TauAdd (t1, t2),
+          Ast.VariableContext.TauAdd (t1', t2') ) ->
+          unify state (Either.Right (t1, t1') :: Either.Right (t2, t2') :: eqs)
+      | Ast.VariableContext.TauConst 0, Ast.VariableContext.TauAdd (t1, t2)
+      | Ast.VariableContext.TauAdd (t1, t2), Ast.VariableContext.TauConst 0 ->
+          unify state
+            (Either.Right (t1, Ast.VariableContext.TauConst 0)
+            :: Either.Right (t2, Ast.VariableContext.TauConst 0)
+            :: eqs)
       | _ when tau1' = tau2' ->
           unify state eqs (* Compare simplified versions *)
       | _ ->
@@ -356,7 +361,7 @@ let rec unify state = function
              (Ast.TyParamMap.singleton a t)
              Context.TauParamMap.empty eqs)
       in
-      (add_subst a t ty_subst, tau_subst)
+      (add_ty_subst a t ty_subst, tau_subst)
   | Either.Left (t, Ast.TyParam a) :: eqs when not (occurs_ty a t) ->
       let ty_subst, tau_subst =
         unify state
@@ -364,7 +369,7 @@ let rec unify state = function
              (Ast.TyParamMap.singleton a t)
              Context.TauParamMap.empty eqs)
       in
-      (add_subst a t ty_subst, tau_subst)
+      (add_ty_subst a t ty_subst, tau_subst)
   | Either.Left (t1, t2) :: _ ->
       let print_param = Ast.new_print_param () in
       Error.typing "Cannot unify types %t = %t"
@@ -374,8 +379,8 @@ let rec unify state = function
 let infer state e =
   let CompTy (t, tau), eqs = infer_computation state e in
   let state' = extend_temporal state tau in
-  let ty_subst, _tau_subst = unify state' eqs in
-  let t' = Ast.substitute_ty ty_subst t in
+  let ty_subst, tau_subst = unify state' eqs in
+  let t' = Ast.substitute_ty ty_subst tau_subst t in
   t'
 
 let add_external_function x ty_sch state =
@@ -386,8 +391,8 @@ let add_external_function x ty_sch state =
 
 let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in
-  let ty_subst, _tau_subst = unify state eqs in
-  let ty' = Ast.substitute_ty ty_subst ty in
+  let ty_subst, tau_subst = unify state eqs in
+  let ty' = Ast.substitute_ty ty_subst tau_subst ty in
   let free_vars = Ast.free_vars ty' |> Ast.TyParamSet.elements in
   let ty_sch = (free_vars, ty') in
   add_external_function x ty_sch state

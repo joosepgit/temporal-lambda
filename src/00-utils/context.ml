@@ -75,23 +75,26 @@ struct
       match lst with
       | [] -> ()
       | VarMap map :: rest ->
-          Printf.printf "VarMap: {\n";
+          Print.print ppf "VarMap: {\n";
           let elements = VariableMap.bindings map in
           let rec print_elements = function
             | [] -> ()
             | entry :: tl ->
                 print_var_and_ty entry ppf;
-                Printf.printf "\n";
+                Print.print ppf "\n";
                 print_elements tl
           in
           print_elements elements;
-          Printf.printf "}\n";
+          Print.print ppf "}\n";
           print_list rest ppf
       | Tau n :: rest ->
           print_tau print_param n ppf;
-          Printf.printf "\n";
+          Print.print ppf "\n";
           print_list rest ppf
     in
+    let ppf = Format.std_formatter in
+    Print.print ppf "VariableContext: [\n";
     (* Reverse the list before printing *)
-    print_list (List.rev lst) Format.std_formatter
+    print_list (List.rev lst) ppf;
+    Print.print ppf "]\n"
 end

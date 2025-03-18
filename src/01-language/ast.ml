@@ -138,10 +138,8 @@ let print_var_and_ty (variable, (params, ty)) ppf =
   Format.pp_print_flush ppf ()
 
 let print_variable_context ctx =
-  Printf.printf "VariableContext: [\n";
   let print_param = new_print_param () in
-  VariableContext.print_contents print_param print_var_and_ty ctx;
-  Printf.printf "]\n"
+  VariableContext.print_contents print_param print_var_and_ty ctx
 
 let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
