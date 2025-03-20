@@ -1,12 +1,13 @@
 module TauParamModule = Symbol.Make ()
 module TauParamMap = Map.Make (TauParamModule)
 
+type tau_param = TauParamModule.t
+type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
+
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t) =
 struct
-  type tau_param = TauParamModule.t
-  type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
   type 'a map_or_tau = VarMap of 'a VariableMap.t | Tau of tau
   type 'a t = 'a map_or_tau list
 

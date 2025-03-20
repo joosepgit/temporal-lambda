@@ -31,7 +31,7 @@ type ty =
   | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
 
-and comp_ty = CompTy of ty * VariableContext.tau  (** [ty ! tau] *)
+and comp_ty = CompTy of ty * Context.tau  (** [ty ! tau] *)
 
 let rec print_ty ?max_level print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -91,14 +91,13 @@ let print_ty_params params ppf =
   Format.fprintf ppf "]"
 
 let rec substitute_tau subst = function
-  | VariableContext.TauConst _ as tau -> tau
-  | VariableContext.TauParam tp as tau -> (
+  | Context.TauConst _ as tau -> tau
+  | Context.TauParam tp as tau -> (
       match Context.TauParamMap.find_opt tp subst with
       | None -> tau
       | Some tau' -> tau')
-  | VariableContext.TauAdd (tau, tau') ->
-      VariableContext.TauAdd
-        (substitute_tau subst tau, substitute_tau subst tau')
+  | Context.TauAdd (tau, tau') ->
+      Context.TauAdd (substitute_tau subst tau, substitute_tau subst tau')
 
 let rec substitute_ty ty_subst tau_subst = function
   | TyConst _ as ty -> ty
@@ -174,7 +173,7 @@ and computation =
   | Do of computation * abstraction
   | Match of expression * abstraction list
   | Apply of expression * expression
-  | Delay of VariableContext.tau * computation
+  | Delay of Context.tau * computation
 
 and abstraction = pattern * computation
 

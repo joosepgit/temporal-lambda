@@ -89,10 +89,10 @@ plain_term:
     { Let ({it= PNonbinding; at= t1.at}, t1, t2) }
   | IF t_cond = comma_term THEN t_true = term ELSE t_false = term
     { Conditional (t_cond, t_true, t_false) }
+  | DELAY d = INT t = term
+    { Delay (d,t) }
   | t = plain_comma_term
     { t }
-  | DELAY d = INT t = plain_comma_term
-    { ignore d; t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:

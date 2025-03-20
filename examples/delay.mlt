@@ -1,0 +1,21 @@
+type nat =
+  | Zero
+  | Succ of nat
+
+let foo_int =
+  function
+  | Zero -> 0
+  | Succ m -> 1
+
+let foo_int_bad =
+  function
+  | Zero -> delay 3 0
+  | Succ m -> delay 3 2
+
+let del n = delay 9 n
+
+run
+  let foo = Zero in
+  let bar = Succ foo in
+  delay 4 (let foobar = foo_int foo in
+  delay 1 (foo_int bar))

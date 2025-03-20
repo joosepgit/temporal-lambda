@@ -69,7 +69,7 @@ let fresh_ty () =
 
 let fresh_tau () =
   let t = Context.TauParamModule.fresh "tau" in
-  Ast.VariableContext.TauParam t
+  Context.TauParam t
 
 let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_tau ())
 
@@ -188,12 +188,12 @@ let rec infer_expression state = function
 and infer_computation state = function
   | Ast.Return expr ->
       let ty, eqs = infer_expression state expr in
-      (Ast.CompTy (ty, Ast.VariableContext.TauConst 0), eqs)
+      (Ast.CompTy (ty, Context.TauConst 0), eqs)
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
-      ( CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)),
+      ( CompTy (ty2, Context.TauAdd (tau1, tau2)),
         (Either.Left (ty1, ty1') :: eqs1) @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
@@ -218,7 +218,7 @@ and infer_computation state = function
   | Ast.Delay (tau, comp) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' comp in
-      (CompTy (ty, Ast.VariableContext.TauAdd (tau, tau')), eqs)
+      (CompTy (ty, Context.TauAdd (tau, tau')), eqs)
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -253,10 +253,9 @@ let rec occurs_ty a = function
   | Ast.TyTuple tys -> List.exists (occurs_ty a) tys
 
 let rec occurs_tau a = function
-  | Ast.VariableContext.TauParam a' -> a = a'
-  | Ast.VariableContext.TauConst _ -> false
-  | Ast.VariableContext.TauAdd (tau, tau') ->
-      occurs_tau a tau || occurs_tau a tau'
+  | Context.TauParam a' -> a = a'
+  | Context.TauConst _ -> false
+  | Context.TauAdd (tau, tau') -> occurs_tau a tau || occurs_tau a tau'
 
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -275,16 +274,23 @@ let unfold state ty_name args =
 
 let rec simplify_tau tau =
   match tau with
-  | Ast.VariableContext.TauAdd (t1, t2) -> (
+  | Context.TauAdd (t1, t2) -> (
       let t1' = simplify_tau t1 in
       let t2' = simplify_tau t2 in
       match (t1', t2') with
-      | Ast.VariableContext.TauConst c1, Ast.VariableContext.TauConst c2 ->
-          Ast.VariableContext.TauConst (c1 + c2)
-      | Ast.VariableContext.TauConst 0, t | t, Ast.VariableContext.TauConst 0 ->
-          t
-      | _ -> Ast.VariableContext.TauAdd (t1', t2'))
+      | Context.TauConst c1, Context.TauConst c2 -> Context.TauConst (c1 + c2)
+      | Context.TauConst 0, t | t, Context.TauConst 0 -> t
+      | _ -> Context.TauAdd (t1', t2'))
   | _ -> tau
+
+and simplify_ty ty =
+  match ty with
+  | Ast.TyConst t -> Ast.TyConst t
+  | TyApply (ty_name, ty_list) -> TyApply (ty_name, List.map simplify_ty ty_list)
+  | TyParam ty_param -> TyParam ty_param
+  | TyArrow (ty, Ast.CompTy (ty', tau')) ->
+      TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
+  | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
 
 let rec unify state = function
   | [] -> (Ast.TyParamMap.empty, Context.TauParamMap.empty)
@@ -293,10 +299,8 @@ let rec unify state = function
       let tau1' = simplify_tau tau1 in
       let tau2' = simplify_tau tau2 in
       match (tau1', tau2') with
-      | Ast.VariableContext.TauParam p1, Ast.VariableContext.TauParam p2
-        when p1 = p2 ->
-          unify state eqs
-      | Ast.VariableContext.TauParam tp, tau when not (occurs_tau tp tau) ->
+      | Context.TauParam p1, Context.TauParam p2 when p1 = p2 -> unify state eqs
+      | Context.TauParam tp, tau when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
             unify state
               (subst_equations Ast.TyParamMap.empty
@@ -304,7 +308,7 @@ let rec unify state = function
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | tau, Ast.VariableContext.TauParam tp when not (occurs_tau tp tau) ->
+      | tau, Context.TauParam tp when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
             unify state
               (subst_equations Ast.TyParamMap.empty
@@ -312,14 +316,13 @@ let rec unify state = function
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | ( Ast.VariableContext.TauAdd (t1, t2),
-          Ast.VariableContext.TauAdd (t1', t2') ) ->
+      | Context.TauAdd (t1, t2), Context.TauAdd (t1', t2') ->
           unify state (Either.Right (t1, t1') :: Either.Right (t2, t2') :: eqs)
-      | Ast.VariableContext.TauConst 0, Ast.VariableContext.TauAdd (t1, t2)
-      | Ast.VariableContext.TauAdd (t1, t2), Ast.VariableContext.TauConst 0 ->
+      | Context.TauConst 0, Context.TauAdd (t1, t2)
+      | Context.TauAdd (t1, t2), Context.TauConst 0 ->
           unify state
-            (Either.Right (t1, Ast.VariableContext.TauConst 0)
-            :: Either.Right (t2, Ast.VariableContext.TauConst 0)
+            (Either.Right (t1, Context.TauConst 0)
+            :: Either.Right (t2, Context.TauConst 0)
             :: eqs)
       | _ when tau1' = tau2' ->
           unify state eqs (* Compare simplified versions *)
@@ -385,7 +388,7 @@ let infer state e =
   let state' = extend_temporal state tau in
   let ty_subst, tau_subst = unify state' eqs in
   let t' = Ast.substitute_ty ty_subst tau_subst t in
-  t'
+  simplify_ty t'
 
 let add_external_function x ty_sch state =
   {
@@ -397,8 +400,9 @@ let add_top_definition state x expr =
   let ty, eqs = infer_expression state expr in
   let ty_subst, tau_subst = unify state eqs in
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
-  let free_vars = Ast.free_vars ty' |> Ast.TyParamSet.elements in
-  let ty_sch = (free_vars, ty') in
+  let ty'' = simplify_ty ty' in
+  let free_vars = Ast.free_vars ty'' |> Ast.TyParamSet.elements in
+  let ty_sch = (free_vars, ty'') in
   add_external_function x ty_sch state
 
 let add_type_definitions state ty_defs =
