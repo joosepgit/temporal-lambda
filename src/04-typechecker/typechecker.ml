@@ -194,7 +194,7 @@ and infer_computation state = function
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
       ( CompTy (ty2, Ast.VariableContext.TauAdd (tau1, tau2)),
-        (Either.Left (ty1, ty1') :: Either.Right (tau1, tau2) :: eqs1) @ eqs2 )
+        (Either.Left (ty1, ty1') :: eqs1) @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
@@ -350,10 +350,14 @@ let rec unify state = function
       in
       unify state (new_eqs @ eqs)
   | Either.Left
-      ( Ast.TyArrow (t1, CompTy (t1', _tau1')),
-        Ast.TyArrow (t2, CompTy (t2', _tau2')) )
+      ( Ast.TyArrow (t1, CompTy (t1', tau1')),
+        Ast.TyArrow (t2, CompTy (t2', tau2')) )
     :: eqs ->
-      unify state (Either.Left (t1, t2) :: Either.Left (t1', t2') :: eqs)
+      unify state
+        (Either.Left (t1, t2)
+        :: Either.Left (t1', t2')
+        :: Either.Right (tau1', tau2')
+        :: eqs)
   | Either.Left (Ast.TyParam a, t) :: eqs when not (occurs_ty a t) ->
       let ty_subst, tau_subst =
         unify state
