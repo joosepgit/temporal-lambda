@@ -12,7 +12,7 @@ let foo_int_bad =
   | Zero -> delay 3 0
   | Succ m -> delay 3 2
 
-let del n = delay 9 n
+let del n = delay 9 (foo_int_bad (delay 2 (Succ n)))
 
 run
   let foo = Zero in

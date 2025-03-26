@@ -47,6 +47,10 @@ let rec print_ty ?max_level print_param p ppf =
         (Print.print_tuple (print_ty print_param) tys)
         (TyName.print ty_name)
   | TyParam a -> print "%t" (print_param a)
+  | TyArrow (ty1, CompTy (ty2, TauConst 0)) ->
+      print ~at_level:3 "(%t → %t)"
+        (print_ty ~max_level:2 print_param ty1)
+        (print_ty ~max_level:3 print_param ty2)
   | TyArrow (ty1, CompTy (ty2, tau)) ->
       print ~at_level:3 "(%t → %t # %t)"
         (print_ty ~max_level:2 print_param ty1)
