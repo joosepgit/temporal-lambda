@@ -14,6 +14,18 @@ let foo_int_bad =
 
 let del n = delay 9 (foo_int_bad (delay 2 (Succ n)))
 
+let higher n = fun m -> delay 5 (n + m)
+
+let higher2 n = delay 10 (fun m -> delay 5 (n + m))
+
+let foo f f2 n = f n; f n; f2 n;  delay 42 ()
+
+let bar n = delay 24 ()
+
+let bar2 n = delay 23 ()
+
+let foobar () = foo bar bar2 7
+
 run
   let foo = Zero in
   let bar = Succ foo in

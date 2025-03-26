@@ -316,8 +316,6 @@ let rec unify state = function
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | Context.TauAdd (t1, t2), Context.TauAdd (t1', t2') ->
-          unify state (Either.Right (t1, t1') :: Either.Right (t2, t2') :: eqs)
       | Context.TauConst 0, Context.TauAdd (t1, t2)
       | Context.TauAdd (t1, t2), Context.TauConst 0 ->
           unify state
