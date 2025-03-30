@@ -5,28 +5,32 @@ module Primitives = Language.Primitives
 
 let poly_type ty =
   let a = Ast.TyParam.fresh "poly" in
-  ([ a ], ty (Ast.TyParam a))
+  ([ a ], [], ty (Ast.TyParam a))
 
 let unary_integer_op_ty =
   ( [],
+    [],
     Ast.TyArrow
       ( Ast.TyConst Const.IntegerTy,
         Ast.CompTy (Ast.TyConst Const.IntegerTy, Context.TauConst 0) ) )
 
 let binary_integer_op_ty =
   ( [],
+    [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.IntegerTy; Ast.TyConst Const.IntegerTy ],
         Ast.CompTy (Ast.TyConst Const.IntegerTy, Context.TauConst 0) ) )
 
 let unary_float_op_ty =
   ( [],
+    [],
     Ast.TyArrow
       ( Ast.TyConst Const.FloatTy,
         Ast.CompTy (Ast.TyConst Const.FloatTy, Context.TauConst 0) ) )
 
 let binary_float_op_ty =
   ( [],
+    [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.FloatTy; Ast.TyConst Const.FloatTy ],
         Ast.CompTy (Ast.TyConst Const.FloatTy, Context.TauConst 0) ) )

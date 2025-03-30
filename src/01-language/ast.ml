@@ -78,20 +78,30 @@ let new_print_param () =
   in
   print_param
 
-let print_ty_params params ppf =
+let print_ty_params ty_params ppf =
   Format.fprintf ppf "[";
   let rec print_helper = function
-    | [] -> () (* Base case: empty list, do nothing *)
-    | [ last ] ->
-        (* Single element case: print without trailing comma *)
-        TyParam.print last ppf
+    | [] -> ()
+    | [ last ] -> TyParam.print last ppf
     | hd :: tl ->
-        (* General case: print with trailing comma *)
         TyParam.print hd ppf;
         Format.fprintf ppf ", ";
         print_helper tl
   in
-  print_helper params;
+  print_helper ty_params;
+  Format.fprintf ppf "]"
+
+let print_tau_params tau_params ppf =
+  Format.fprintf ppf "[";
+  let rec print_helper = function
+    | [] -> ()
+    | [ last ] -> Context.TauParamModule.print last ppf
+    | hd :: tl ->
+        Context.TauParamModule.print hd ppf;
+        Format.fprintf ppf ", ";
+        print_helper tl
+  in
+  print_helper tau_params;
   Format.fprintf ppf "]"
 
 let rec substitute_tau subst = function
@@ -117,6 +127,10 @@ let rec substitute_ty ty_subst tau_subst = function
             (substitute_ty ty_subst tau_subst ty2, substitute_tau tau_subst tau)
         )
 
+let substitute_comp_ty ty_subst tau_subst = function
+  | CompTy (ty, tau) ->
+      CompTy (substitute_ty ty_subst tau_subst ty, substitute_tau tau_subst tau)
+
 let rec free_vars = function
   | TyConst _ -> TyParamSet.empty
   | TyParam a -> TyParamSet.singleton a
@@ -131,13 +145,15 @@ let rec free_vars = function
   | TyArrow (ty1, CompTy (ty2, _)) ->
       TyParamSet.union (free_vars ty1) (free_vars ty2)
 
-let print_var_and_ty (variable, (params, ty)) ppf =
+let print_var_and_ty (variable, (ty_params, tau_params, ty)) ppf =
   let pp = new_print_param () in
   Variable.print variable ppf;
   Format.fprintf ppf " -> ";
-  print_ty_params params ppf;
+  print_ty_params ty_params ppf;
   Format.fprintf ppf ", ";
-  Print.print ppf "@[%t@]" (print_ty pp ty);
+  print_tau_params tau_params ppf;
+  Format.fprintf ppf " ";
+  Format.fprintf ppf "@[%t@]" (print_ty pp ty);
   Format.pp_print_flush ppf ()
 
 let print_variable_context ctx =

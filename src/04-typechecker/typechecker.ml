@@ -3,7 +3,8 @@ module Ast = Language.Ast
 module Const = Language.Const
 
 type state = {
-  variables : (Ast.ty_param list * Ast.ty) Ast.VariableContext.t;
+  variables :
+    (Ast.ty_param list * Context.tau_param list * Ast.ty) Ast.VariableContext.t;
   type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
 
@@ -77,7 +78,7 @@ let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
       let updated_variables =
-        Ast.VariableContext.add_variable x ([], ty) state.variables
+        Ast.VariableContext.add_variable x ([], [], ty) state.variables
       in
       { state with variables = updated_variables })
     state vars
@@ -151,9 +152,11 @@ let rec infer_pattern state = function
 
 let rec infer_expression state = function
   | Ast.Var x ->
-      let params, ty = Ast.VariableContext.find_variable x state.variables in
-      let ty_subst = refreshing_subst params in
-      let tau_subst = refreshing_tau_subst [] in
+      let ty_params, tau_params, ty =
+        Ast.VariableContext.find_variable x state.variables
+      in
+      let ty_subst = refreshing_subst ty_params in
+      let tau_subst = refreshing_tau_subst tau_params in
       (Ast.substitute_ty ty_subst tau_subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
   | Ast.Annotated (expr, ty) ->
@@ -292,6 +295,9 @@ and simplify_ty ty =
       TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
   | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
 
+let simplify_comp_ty = function
+  | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
+
 let rec unify state = function
   | [] -> (Ast.TyParamMap.empty, Context.TauParamMap.empty)
   | Either.Left (t1, t2) :: eqs when t1 = t2 -> unify state eqs
@@ -382,11 +388,10 @@ let rec unify state = function
         (Ast.print_ty print_param t2)
 
 let infer state e =
-  let CompTy (t, tau), eqs = infer_computation state e in
-  let state' = extend_temporal state tau in
-  let ty_subst, tau_subst = unify state' eqs in
-  let t' = Ast.substitute_ty ty_subst tau_subst t in
-  simplify_ty t'
+  let comp_ty, eqs = infer_computation state e in
+  let ty_subst, tau_subst = unify state eqs in
+  let comp_ty' = Ast.substitute_comp_ty ty_subst tau_subst comp_ty in
+  simplify_comp_ty comp_ty'
 
 let add_external_function x ty_sch state =
   {
@@ -400,7 +405,7 @@ let add_top_definition state x expr =
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
   let ty'' = simplify_ty ty' in
   let free_vars = Ast.free_vars ty'' |> Ast.TyParamSet.elements in
-  let ty_sch = (free_vars, ty'') in
+  let ty_sch = (free_vars, [], ty'') in
   add_external_function x ty_sch state
 
 let add_type_definitions state ty_defs =
