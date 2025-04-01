@@ -17,7 +17,7 @@
 %token TYPE ARROW OF HASH
 %token MATCH WITH FUNCTION
 %token RUN LET REC AND IN
-%token DELAY
+%token DELAY BOX
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -91,6 +91,8 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | DELAY d = INT t = term
     { Delay (d,t) }
+  | BOX v = pattern AS x = lname IN n = term
+    { Box (v, x, n) }
   | t = plain_comma_term
     { t }
 

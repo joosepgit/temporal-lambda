@@ -54,6 +54,7 @@ let rec check_ty state = function
       check_ty state ty1;
       check_comp_ty state ty2
   | TyTuple tys -> List.iter (check_ty state) tys
+  | TyBox (_, ty) -> check_ty state ty
 
 and check_comp_ty state = function Ast.CompTy (ty, _tau) -> check_ty state ty
 
@@ -222,6 +223,14 @@ and infer_computation state = function
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' comp in
       (CompTy (ty, Context.TauAdd (tau, tau')), eqs)
+  | Ast.Box (_var, abs) ->
+      let (CompTy (fresh_c_ty, fresh_tau)) = fresh_comp_ty () in
+      let ty, CompTy (c_ty, tau), eqs = infer_abstraction state abs in
+      ( CompTy (fresh_c_ty, fresh_tau),
+        Either.Left (ty, fresh_ty ())
+        :: Either.Left (fresh_c_ty, c_ty)
+        :: Either.Right (fresh_tau, tau)
+        :: eqs )
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -250,9 +259,10 @@ let add_tau_subst tp tau tau_subst =
 let rec occurs_ty a = function
   | Ast.TyParam a' -> a = a'
   | Ast.TyConst _ -> false
-  | Ast.TyArrow (ty1, CompTy (ty2, _tau)) -> occurs_ty a ty1 || occurs_ty a ty2
+  | Ast.TyArrow (ty1, CompTy (ty2, _)) -> occurs_ty a ty1 || occurs_ty a ty2
   | Ast.TyApply (_, tys) -> List.exists (occurs_ty a) tys
   | Ast.TyTuple tys -> List.exists (occurs_ty a) tys
+  | Ast.TyBox (_, ty) -> occurs_ty a ty
 
 let rec occurs_tau a = function
   | Context.TauParam a' -> a = a'
@@ -293,6 +303,7 @@ and simplify_ty ty =
   | TyArrow (ty, Ast.CompTy (ty', tau')) ->
       TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
   | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
+  | TyBox (tau, ty) -> TyBox (simplify_tau tau, simplify_ty ty)
 
 let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)

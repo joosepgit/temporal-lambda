@@ -32,6 +32,7 @@ type ty =
   | TyParam of ty_param  (** ['a] *)
   | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
+  | TyBox of Context.tau * ty  (** [ [tau]ty ] *)
 
 and comp_ty = CompTy of ty * Context.tau  (** [ty ! tau] *)
 
@@ -64,6 +65,27 @@ let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
         (Print.print_sequence " × "
            (print_ty ~max_level:1 ty_print_param tau_print_param)
            tys)
+  | TyBox (tau, ty) ->
+      print ~at_level:1 "[%t]%t"
+        (VariableContext.print_tau tau_print_param tau)
+        (print_ty ~max_level:0 ty_print_param tau_print_param ty)
+
+let new_print_param () =
+  let names = ref TyParamMap.empty in
+  let counter = ref 0 in
+  let print_param param ppf =
+    let symbol =
+      match TyParamMap.find_opt param !names with
+      | Some symbol -> symbol
+      | None ->
+          let symbol = Symbol.type_symbol !counter in
+          incr counter;
+          names := TyParamMap.add param symbol !names;
+          symbol
+    in
+    Print.print ppf "%s" symbol
+  in
+  print_param
 
 let print_ty_params ty_params ppf =
   Format.fprintf ppf "[";
@@ -113,6 +135,8 @@ let rec substitute_ty ty_subst tau_subst = function
           CompTy
             (substitute_ty ty_subst tau_subst ty2, substitute_tau tau_subst tau)
         )
+  | TyBox (tau, ty) ->
+      TyBox (substitute_tau tau_subst tau, substitute_ty ty_subst tau_subst ty)
 
 let substitute_comp_ty ty_subst tau_subst = function
   | CompTy (ty, tau) ->
@@ -131,6 +155,7 @@ let rec free_vars = function
         TyParamSet.empty tys
   | TyArrow (ty1, CompTy (ty2, _)) ->
       TyParamSet.union (free_vars ty1) (free_vars ty2)
+  | TyBox (_, ty) -> free_vars ty
 
 let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf =
   Variable.print variable ppf;
@@ -181,6 +206,7 @@ and computation =
   | Match of expression * abstraction list
   | Apply of expression * expression
   | Delay of Context.tau * computation
+  | Box of variable * abstraction
 
 and abstraction = pattern * computation
 
@@ -247,6 +273,9 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "delay %t %t"
         (VariableContext.print_tau print_param n)
         (print_computation c)
+  | Box (x, (pat, c)) ->
+      print ~at_level:1 "box %t as %t in %t" (print_pattern pat)
+        (Variable.print x) (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

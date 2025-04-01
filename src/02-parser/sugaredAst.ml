@@ -59,6 +59,7 @@ and plain_term =
   | Conditional of term * term * term  (** [if t then t1 else t2] *)
   | Apply of term * term  (** [t1 t2] *)
   | Delay of int * term  (** [tau t] **)
+  | Box of pattern * variable * term  (** [box v as p in n with ] *)
 
 and abstraction = pattern * term
 and guarded_abstraction = pattern * term option * term
