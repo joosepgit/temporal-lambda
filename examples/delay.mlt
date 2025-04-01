@@ -18,7 +18,7 @@ let higher n = fun m -> delay 5 (n + m)
 
 let higher2 n = delay 10 (fun m -> delay 5 (n + m))
 
-let foo f f2 n = f n; f n; f2 n;  delay 42 ()
+let foo f f2 n = f n; f n; f n; f2 n; f2 n;  delay 42 ()
 
 let bar n = delay 24 ()
 

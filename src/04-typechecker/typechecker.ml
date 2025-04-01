@@ -87,7 +87,7 @@ let extend_temporal state t =
   let updated_variables = Ast.VariableContext.add_temp t state.variables in
   { state with variables = updated_variables }
 
-let refreshing_subst params =
+let refreshing_ty_subst params =
   List.fold_left
     (fun subst param ->
       let ty = fresh_ty () in
@@ -113,10 +113,10 @@ let infer_variant state lbl =
   let ty_name, params, ty =
     find (Ast.TyNameMap.bindings state.type_definitions)
   in
-  let subst = refreshing_subst params in
+  let ty_subst = refreshing_ty_subst params in
   let tau_subst = refreshing_tau_subst [] in
-  let args = List.map (fun param -> Ast.TyParamMap.find param subst) params
-  and ty' = Option.map (Ast.substitute_ty subst tau_subst) ty in
+  let args = List.map (fun param -> Ast.TyParamMap.find param ty_subst) params
+  and ty' = Option.map (Ast.substitute_ty ty_subst tau_subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
 let rec infer_pattern state = function
@@ -155,7 +155,7 @@ let rec infer_expression state = function
       let ty_params, tau_params, ty =
         Ast.VariableContext.find_variable x state.variables
       in
-      let ty_subst = refreshing_subst ty_params in
+      let ty_subst = refreshing_ty_subst ty_params in
       let tau_subst = refreshing_tau_subst tau_params in
       (Ast.substitute_ty ty_subst tau_subst ty, [])
   | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
@@ -241,9 +241,8 @@ let subst_equations ty_subst tau_subst =
   in
   List.map subst_equation
 
-let add_ty_subst a ty ty_sbst =
-  let tau_subst = refreshing_tau_subst [] in
-  Ast.TyParamMap.add a (Ast.substitute_ty ty_sbst tau_subst ty) ty_sbst
+let add_ty_subst a ty ty_subst tau_subst =
+  Ast.TyParamMap.add a (Ast.substitute_ty ty_subst tau_subst ty) ty_subst
 
 let add_tau_subst tp tau tau_subst =
   Context.TauParamMap.add tp (Ast.substitute_tau tau_subst tau) tau_subst
@@ -372,7 +371,7 @@ let rec unify state = function
              (Ast.TyParamMap.singleton a t)
              Context.TauParamMap.empty eqs)
       in
-      (add_ty_subst a t ty_subst, tau_subst)
+      (add_ty_subst a t ty_subst tau_subst, tau_subst)
   | Either.Left (t, Ast.TyParam a) :: eqs when not (occurs_ty a t) ->
       let ty_subst, tau_subst =
         unify state
@@ -380,7 +379,7 @@ let rec unify state = function
              (Ast.TyParamMap.singleton a t)
              Context.TauParamMap.empty eqs)
       in
-      (add_ty_subst a t ty_subst, tau_subst)
+      (add_ty_subst a t ty_subst tau_subst, tau_subst)
   | Either.Left (t1, t2) :: _ ->
       let ty_pp = Ast.TyPrintParam.create () in
       let tau_pp = Ast.TauPrintParam.create () in
