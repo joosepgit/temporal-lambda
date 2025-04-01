@@ -23,6 +23,8 @@ type ty_param = TyParam.t
 
 module TyParamMap = Map.Make (TyParam)
 module TyParamSet = Set.Make (TyParam)
+module TyPrintParam = Print.PrintParam (TyParamMap)
+module TauPrintParam = Print.PrintParam (Context.TauParamMap)
 
 type ty =
   | TyConst of Const.ty
@@ -33,50 +35,35 @@ type ty =
 
 and comp_ty = CompTy of ty * Context.tau  (** [ty ! tau] *)
 
-let rec print_ty ?max_level print_param p ppf =
+let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match p with
   | TyConst c -> print "%t" (Const.print_ty c)
   | TyApply (ty_name, []) -> print "%t" (TyName.print ty_name)
   | TyApply (ty_name, [ ty ]) ->
       print ~at_level:1 "%t %t"
-        (print_ty ~max_level:1 print_param ty)
+        (print_ty ~max_level:1 ty_print_param tau_print_param ty)
         (TyName.print ty_name)
   | TyApply (ty_name, tys) ->
       print ~at_level:1 "%t %t"
-        (Print.print_tuple (print_ty print_param) tys)
+        (Print.print_tuple (print_ty ty_print_param tau_print_param) tys)
         (TyName.print ty_name)
-  | TyParam a -> print "%t" (print_param a)
+  | TyParam a -> print "%t" (ty_print_param a)
   | TyArrow (ty1, CompTy (ty2, TauConst 0)) ->
       print ~at_level:3 "(%t → %t)"
-        (print_ty ~max_level:2 print_param ty1)
-        (print_ty ~max_level:3 print_param ty2)
+        (print_ty ~max_level:2 ty_print_param tau_print_param ty1)
+        (print_ty ~max_level:3 ty_print_param tau_print_param ty2)
   | TyArrow (ty1, CompTy (ty2, tau)) ->
       print ~at_level:3 "(%t → %t # %t)"
-        (print_ty ~max_level:2 print_param ty1)
-        (print_ty ~max_level:3 print_param ty2)
-        (VariableContext.print_tau print_param tau)
+        (print_ty ~max_level:2 ty_print_param tau_print_param ty1)
+        (print_ty ~max_level:3 ty_print_param tau_print_param ty2)
+        (VariableContext.print_tau tau_print_param tau)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
       print ~at_level:2 "%t"
-        (Print.print_sequence " × " (print_ty ~max_level:1 print_param) tys)
-
-let new_print_param () =
-  let names = ref TyParamMap.empty in
-  let counter = ref 0 in
-  let print_param param ppf =
-    let symbol =
-      match TyParamMap.find_opt param !names with
-      | Some symbol -> symbol
-      | None ->
-          let symbol = Symbol.type_symbol !counter in
-          incr counter;
-          names := TyParamMap.add param symbol !names;
-          symbol
-    in
-    Print.print ppf "%s" symbol
-  in
-  print_param
+        (Print.print_sequence " × "
+           (print_ty ~max_level:1 ty_print_param tau_print_param)
+           tys)
 
 let print_ty_params ty_params ppf =
   Format.fprintf ppf "[";
@@ -145,20 +132,20 @@ let rec free_vars = function
   | TyArrow (ty1, CompTy (ty2, _)) ->
       TyParamSet.union (free_vars ty1) (free_vars ty2)
 
-let print_var_and_ty (variable, (ty_params, tau_params, ty)) ppf =
-  let pp = new_print_param () in
+let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf =
   Variable.print variable ppf;
   Format.fprintf ppf " -> ";
   print_ty_params ty_params ppf;
   Format.fprintf ppf ", ";
   print_tau_params tau_params ppf;
   Format.fprintf ppf " ";
-  Format.fprintf ppf "@[%t@]" (print_ty pp ty);
+  Format.fprintf ppf "@[%t@]" (print_ty ty_pp tau_pp ty);
   Format.pp_print_flush ppf ()
 
 let print_variable_context ctx =
-  let print_param = new_print_param () in
-  VariableContext.print_contents print_param print_var_and_ty ctx
+  let ty_pp = TyPrintParam.create () in
+  let tau_pp = TauPrintParam.create () in
+  VariableContext.print_contents ty_pp tau_pp print_var_and_ty ctx
 
 let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
@@ -256,7 +243,7 @@ and print_computation ?max_level c ppf =
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
   | Delay (n, c) ->
-      let print_param = new_print_param () in
+      let print_param = TauPrintParam.create () in
       print ~at_level:1 "delay %t %t"
         (VariableContext.print_tau print_param n)
         (print_computation c)

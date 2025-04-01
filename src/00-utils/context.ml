@@ -71,7 +71,7 @@ struct
           (fun ppf -> print_tau print_param t2 ppf)
 
   (* Print the contents of the list, reversing it before printing *)
-  let print_contents print_param print_var_and_ty lst =
+  let print_contents ty_print_param tau_print_param print_var_and_ty lst =
     let rec print_list lst ppf =
       match lst with
       | [] -> ()
@@ -81,7 +81,7 @@ struct
           let rec print_elements = function
             | [] -> ()
             | entry :: tl ->
-                print_var_and_ty entry ppf;
+                print_var_and_ty ty_print_param tau_print_param entry ppf;
                 Print.print ppf "\n";
                 print_elements tl
           in
@@ -89,7 +89,7 @@ struct
           Print.print ppf "}\n";
           print_list rest ppf
       | Tau n :: rest ->
-          print_tau print_param n ppf;
+          print_tau tau_print_param n ppf;
           Print.print ppf "\n";
           print_list rest ppf
     in

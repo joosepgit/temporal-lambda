@@ -331,7 +331,7 @@ let rec unify state = function
       | _ when tau1' = tau2' ->
           unify state eqs (* Compare simplified versions *)
       | _ ->
-          let print_param = Ast.new_print_param () in
+          let print_param = Ast.TauPrintParam.create () in
           Error.typing "Cannot unify temporal values %t = %t"
             (fun ppf -> Ast.VariableContext.print_tau print_param tau1 ppf)
             (fun ppf -> Ast.VariableContext.print_tau print_param tau2 ppf))
@@ -382,10 +382,11 @@ let rec unify state = function
       in
       (add_ty_subst a t ty_subst, tau_subst)
   | Either.Left (t1, t2) :: _ ->
-      let print_param = Ast.new_print_param () in
+      let ty_pp = Ast.TyPrintParam.create () in
+      let tau_pp = Ast.TauPrintParam.create () in
       Error.typing "Cannot unify types %t = %t"
-        (Ast.print_ty print_param t1)
-        (Ast.print_ty print_param t2)
+        (Ast.print_ty ty_pp tau_pp t1)
+        (Ast.print_ty ty_pp tau_pp t2)
 
 let infer state e =
   let comp_ty, eqs = infer_computation state e in
