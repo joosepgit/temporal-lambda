@@ -219,18 +219,16 @@ and infer_computation state = function
         @ eqs
       in
       (branch_comp_ty, List.fold_left fold eqs cases)
-  | Ast.Delay (tau, comp) ->
+  | Ast.Delay (tau, c) ->
       let state' = extend_temporal state tau in
-      let CompTy (ty, tau'), eqs = infer_computation state' comp in
+      let CompTy (ty, tau'), eqs = infer_computation state' c in
       (CompTy (ty, Context.TauAdd (tau, tau')), eqs)
-  | Ast.Box (_var, abs) ->
-      let (CompTy (fresh_c_ty, fresh_tau)) = fresh_comp_ty () in
-      let ty, CompTy (c_ty, tau), eqs = infer_abstraction state abs in
-      ( CompTy (fresh_c_ty, fresh_tau),
-        Either.Left (ty, fresh_ty ())
-        :: Either.Left (fresh_c_ty, c_ty)
-        :: Either.Right (fresh_tau, tau)
-        :: eqs )
+  | Ast.Box (tau, e, v, c) ->
+      let state_ahead = extend_temporal state tau in
+      let value_ty, eqs = infer_expression state_ahead e in
+      let state_box = extend_variables state [ (v, TyBox (tau, value_ty)) ] in
+      let ty, eqs' = infer_computation state_box c in
+      (ty, eqs @ eqs')
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in

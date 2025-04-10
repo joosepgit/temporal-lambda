@@ -190,14 +190,14 @@ and desugar_plain_computation ~loc state =
       let state', f, comp1 = desugar_let_rec_def state (x, term1) in
       let c = desugar_computation state' term2 in
       ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
-  | Sugared.Delay (tau, term) ->
-      let c1 = desugar_computation state term in
-      ([], Untyped.Delay (Context.TauConst tau, c1))
-  | Sugared.Box (pat, x, term) ->
-      let x' = Untyped.Variable.fresh x in
-      let state' = add_fresh_variables state (StringMap.singleton x x') in
-      let abs = desugar_abstraction state' (pat, term) in
-      ([], Untyped.Box (x', abs))
+  | Sugared.Delay (tau, c) ->
+      let c' = desugar_computation state c in
+      ([], Untyped.Delay (Context.TauConst tau, c'))
+  | Sugared.Box (tau, e, v, c) ->
+      let v' = lookup_variable ~loc state v in
+      let binds, e' = desugar_expression state e in
+      let c' = desugar_computation state c in
+      (binds, Untyped.Box (Context.TauConst tau, e', v', c'))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

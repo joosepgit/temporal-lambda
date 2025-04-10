@@ -206,7 +206,7 @@ and computation =
   | Match of expression * abstraction list
   | Apply of expression * expression
   | Delay of Context.tau * computation
-  | Box of variable * abstraction
+  | Box of Context.tau * expression * variable * computation
 
 and abstraction = pattern * computation
 
@@ -273,9 +273,11 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "delay %t %t"
         (VariableContext.print_tau print_param n)
         (print_computation c)
-  | Box (x, (pat, c)) ->
-      print ~at_level:1 "box %t as %t in %t" (print_pattern pat)
-        (Variable.print x) (print_computation c)
+  | Box (tau, e, v, c) ->
+      let print_param = TauPrintParam.create () in
+      print ~at_level:1 "box %t[%t] as %t in %t"
+        (VariableContext.print_tau print_param tau)
+        (print_expression e) (Variable.print v) (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

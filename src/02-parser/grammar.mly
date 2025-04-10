@@ -89,10 +89,10 @@ plain_term:
     { Let ({it= PNonbinding; at= t1.at}, t1, t2) }
   | IF t_cond = comma_term THEN t_true = term ELSE t_false = term
     { Conditional (t_cond, t_true, t_false) }
-  | DELAY d = INT t = term
-    { Delay (d,t) }
-  | BOX v = pattern AS x = lname IN n = term
-    { Box (v, x, n) }
+  | DELAY tau = INT t = term
+    { Delay (tau, t) }
+  | BOX tau = INT e = term AS v = lname IN c = term
+    { Box (tau, e, v, c) }
   | t = plain_comma_term
     { t }
 
