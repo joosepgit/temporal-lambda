@@ -61,14 +61,15 @@ struct
     find_in_maps lst
 
   (* Print tau abstractions *)
-  let rec print_tau print_param tau ppf =
+  let rec print_tau ?max_level tau_print_param tau ppf =
+    let print ?at_level = Print.print ?max_level ?at_level ppf in
     match tau with
     | TauConst i -> Format.fprintf ppf "TauConst(%d)" i
-    | TauParam p -> Format.fprintf ppf "TauParam(%t)" (TauParamModule.print p)
+    | TauParam p -> print "%t" (tau_print_param p)
     | TauAdd (t1, t2) ->
         Format.fprintf ppf "TauAdd(@[%t, %t@])"
-          (fun ppf -> print_tau print_param t1 ppf)
-          (fun ppf -> print_tau print_param t2 ppf)
+          (fun ppf -> print_tau tau_print_param t1 ppf)
+          (fun ppf -> print_tau tau_print_param t2 ppf)
 
   (* Print the contents of the list, reversing it before printing *)
   let print_contents ty_print_param tau_print_param print_var_and_ty lst =

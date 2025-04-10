@@ -123,12 +123,10 @@ and refresh_computation vars = function
   | Ast.Apply (expr1, expr2) ->
       Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
   | Ast.Delay (tau, c) -> Ast.Delay (tau, refresh_computation vars c)
-  | Ast.Box (tau, e, v, c) ->
-      let v' = Ast.Variable.refresh v in
-      let vars' = (v, v') :: vars in
-      let e' = refresh_expression vars' e in
-      let c' = refresh_computation vars' c in
-      Ast.Box (tau, e', v', c')
+  | Ast.Box (tau, e, abs) ->
+      let e' = refresh_expression vars e in
+      let abs' = refresh_abstraction vars abs in
+      Ast.Box (tau, e', abs')
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -160,9 +158,9 @@ and substitute_computation subst = function
       Ast.Apply
         (substitute_expression subst expr1, substitute_expression subst expr2)
   | Ast.Delay (tau, c) -> Ast.Delay (tau, substitute_computation subst c)
-  | Ast.Box (tau, e, v, c) ->
+  | Ast.Box (tau, e, abs) ->
       Ast.Box
-        (tau, substitute_expression subst e, v, substitute_computation subst c)
+        (tau, substitute_expression subst e, substitute_abstraction subst abs)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -224,8 +222,11 @@ let rec step_computation env = function
           (ComputationRedex DoReturn, fun () -> substitute subst comp2')
           :: comps1'
       | _ -> comps1')
-  | Ast.Delay (_, c) -> [ (ComputationRedex DoReturn, fun () -> c) ]
-  | Ast.Box (_, _, _, c) -> [ (ComputationRedex DoReturn, fun () -> c) ]
+  | Ast.Delay (_tau, c) ->
+      [ (ComputationRedex DoReturn, fun () -> c) ]
+      (* TODO: implement with state, currently incorrect *)
+  | Ast.Box (_tau, _e, (_p, c)) -> [ (ComputationRedex DoReturn, fun () -> c) ]
+(* TODO: implement with state, currently incorrect *)
 
 type load_state = {
   environment : environment;

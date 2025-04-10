@@ -1,6 +1,6 @@
 (** Pretty-printing functions *)
 
-module PrintParam (ParamMap : Map.S) = struct
+module TyPrintParam (ParamMap : Map.S) = struct
   let create () =
     let names = ref ParamMap.empty in
     let counter = ref 0 in
@@ -10,6 +10,25 @@ module PrintParam (ParamMap : Map.S) = struct
         | Some symbol -> symbol
         | None ->
             let symbol = Symbol.type_symbol !counter in
+            incr counter;
+            names := ParamMap.add param symbol !names;
+            symbol
+      in
+      Format.fprintf ppf "%s" symbol
+    in
+    print_param
+end
+
+module TauPrintParam (ParamMap : Map.S) = struct
+  let create () =
+    let names = ref ParamMap.empty in
+    let counter = ref 0 in
+    let print_param param ppf =
+      let symbol =
+        match ParamMap.find_opt param !names with
+        | Some symbol -> symbol
+        | None ->
+            let symbol = Symbol.tau_symbol !counter in
             incr counter;
             names := ParamMap.add param symbol !names;
             symbol

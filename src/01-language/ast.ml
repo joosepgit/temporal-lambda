@@ -23,8 +23,8 @@ type ty_param = TyParam.t
 
 module TyParamMap = Map.Make (TyParam)
 module TyParamSet = Set.Make (TyParam)
-module TyPrintParam = Print.PrintParam (TyParamMap)
-module TauPrintParam = Print.PrintParam (Context.TauParamMap)
+module TyPrintParam = Print.TyPrintParam (TyParamMap)
+module TauPrintParam = Print.TauPrintParam (Context.TauParamMap)
 
 type ty =
   | TyConst of Const.ty
@@ -69,23 +69,6 @@ let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
       print ~at_level:1 "[%t]%t"
         (VariableContext.print_tau tau_print_param tau)
         (print_ty ~max_level:0 ty_print_param tau_print_param ty)
-
-let new_print_param () =
-  let names = ref TyParamMap.empty in
-  let counter = ref 0 in
-  let print_param param ppf =
-    let symbol =
-      match TyParamMap.find_opt param !names with
-      | Some symbol -> symbol
-      | None ->
-          let symbol = Symbol.type_symbol !counter in
-          incr counter;
-          names := TyParamMap.add param symbol !names;
-          symbol
-    in
-    Print.print ppf "%s" symbol
-  in
-  print_param
 
 let print_ty_params ty_params ppf =
   Format.fprintf ppf "[";
@@ -206,7 +189,7 @@ and computation =
   | Match of expression * abstraction list
   | Apply of expression * expression
   | Delay of Context.tau * computation
-  | Box of Context.tau * expression * variable * computation
+  | Box of Context.tau * expression * abstraction
 
 and abstraction = pattern * computation
 
@@ -268,16 +251,16 @@ and print_computation ?max_level c ppf =
       print ~at_level:1 "@[%t@ %t@]"
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
-  | Delay (n, c) ->
+  | Delay (tau, c) ->
       let print_param = TauPrintParam.create () in
       print ~at_level:1 "delay %t %t"
-        (VariableContext.print_tau print_param n)
+        (VariableContext.print_tau print_param tau)
         (print_computation c)
-  | Box (tau, e, v, c) ->
+  | Box (tau, e, (p, c)) ->
       let print_param = TauPrintParam.create () in
       print ~at_level:1 "box %t[%t] as %t in %t"
         (VariableContext.print_tau print_param tau)
-        (print_expression e) (Variable.print v) (print_computation c)
+        (print_expression e) (print_pattern p) (print_computation c)
 
 and print_abstraction (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p) (print_computation c)

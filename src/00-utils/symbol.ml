@@ -60,9 +60,10 @@ let greek_letters =
     "π";
     "ρ";
     "σ";
-    "τ";
   |]
 
 let type_symbol n =
   if n < Array.length greek_letters then greek_letters.(n)
-  else "τ" ^ subscript (n - Array.length greek_letters)
+  else "σ" ^ subscript (n - Array.length greek_letters)
+
+let tau_symbol n = "τ" ^ subscript n

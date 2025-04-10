@@ -193,11 +193,10 @@ and desugar_plain_computation ~loc state =
   | Sugared.Delay (tau, c) ->
       let c' = desugar_computation state c in
       ([], Untyped.Delay (Context.TauConst tau, c'))
-  | Sugared.Box (tau, e, v, c) ->
-      let v' = lookup_variable ~loc state v in
+  | Sugared.Box (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
-      let c' = desugar_computation state c in
-      (binds, Untyped.Box (Context.TauConst tau, e', v', c'))
+      let abs = desugar_abstraction state (p, c) in
+      (binds, Untyped.Box (Context.TauConst tau, e', abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

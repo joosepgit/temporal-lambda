@@ -91,8 +91,8 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | DELAY tau = INT t = term
     { Delay (tau, t) }
-  | BOX tau = INT e = term AS v = lname IN c = term
-    { Box (tau, e, v, c) }
+  | BOX tau = INT e = term AS p = pattern IN c = term
+    { Box (tau, e, (p, c)) }
   | t = plain_comma_term
     { t }
 

@@ -223,12 +223,12 @@ and infer_computation state = function
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' c in
       (CompTy (ty, Context.TauAdd (tau, tau')), eqs)
-  | Ast.Box (tau, e, v, c) ->
+  | Ast.Box (tau, e, abs) ->
       let state_ahead = extend_temporal state tau in
       let value_ty, eqs = infer_expression state_ahead e in
-      let state_box = extend_variables state [ (v, TyBox (tau, value_ty)) ] in
-      let ty, eqs' = infer_computation state_box c in
-      (ty, eqs @ eqs')
+      let value_ty', comp_ty, eqs' = infer_abstraction state abs in
+      ( comp_ty,
+        (Either.Left (Ast.TyBox (tau, value_ty), value_ty') :: eqs) @ eqs' )
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
