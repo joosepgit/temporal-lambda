@@ -1,7 +1,13 @@
 module TauParamModule = Symbol.Make ()
 module TauParamMap = Map.Make (TauParamModule)
+module TauPrintParam = Print.TauPrintParam (TauParamMap)
+module TyParamModule = Symbol.Make ()
+module TyParamMap = Map.Make (TyParamModule)
+module TyParamSet = Set.Make (TyParamModule)
+module TyPrintParam = Print.TyPrintParam (TyParamMap)
 
 type tau_param = TauParamModule.t
+type ty_param = TyParamModule.t
 type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
 
 module Make
@@ -61,18 +67,18 @@ struct
     find_in_maps lst
 
   (* Print tau abstractions *)
-  let rec print_tau ?max_level tau_print_param tau ppf =
+  let rec print_tau ?max_level tau_pp tau ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match tau with
-    | TauConst i -> Format.fprintf ppf "TauConst(%d)" i
-    | TauParam p -> print "%t" (tau_print_param p)
+    | TauConst i -> Format.fprintf ppf "%d" i
+    | TauParam p -> print "%t" (tau_pp p)
     | TauAdd (t1, t2) ->
-        Format.fprintf ppf "TauAdd(@[%t, %t@])"
-          (fun ppf -> print_tau tau_print_param t1 ppf)
-          (fun ppf -> print_tau tau_print_param t2 ppf)
+        Format.fprintf ppf "@[%t + %t@]"
+          (fun ppf -> print_tau tau_pp t1 ppf)
+          (fun ppf -> print_tau tau_pp t2 ppf)
 
   (* Print the contents of the list, reversing it before printing *)
-  let print_contents ty_print_param tau_print_param print_var_and_ty lst =
+  let print_contents print_var_and_ty lst =
     let rec print_list lst ppf =
       match lst with
       | [] -> ()
@@ -82,7 +88,9 @@ struct
           let rec print_elements = function
             | [] -> ()
             | entry :: tl ->
-                print_var_and_ty ty_print_param tau_print_param entry ppf;
+                let ty_pp = TyPrintParam.create () in
+                let tau_pp = TauPrintParam.create () in
+                print_var_and_ty ty_pp tau_pp entry ppf;
                 Print.print ppf "\n";
                 print_elements tl
           in
@@ -90,7 +98,8 @@ struct
           Print.print ppf "}\n";
           print_list rest ppf
       | Tau n :: rest ->
-          print_tau tau_print_param n ppf;
+          let tau_pp = TauPrintParam.create () in
+          print_tau tau_pp n ppf;
           Print.print ppf "\n";
           print_list rest ppf
     in

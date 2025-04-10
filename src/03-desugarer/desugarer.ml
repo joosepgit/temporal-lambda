@@ -15,7 +15,7 @@ let add_unique ~loc kind str symb string_map =
 
 type state = {
   ty_names : Untyped.ty_name StringMap.t;
-  ty_params : Untyped.ty_param StringMap.t;
+  ty_params : Context.ty_param StringMap.t;
   variables : Untyped.variable StringMap.t;
   labels : Untyped.label StringMap.t;
 }
@@ -292,7 +292,9 @@ let desugar_command state { Sugared.it = cmd; at = loc } =
       let new_names = List.map def_name defs in
       let state' = add_fresh_ty_names ~loc state new_names in
       let aux (params, _, ty_def) (_, ty_name') (state', defs) =
-        let params' = List.map (fun a -> (a, Untyped.TyParam.fresh a)) params in
+        let params' =
+          List.map (fun a -> (a, Context.TyParamModule.fresh a)) params
+        in
         let state'' = add_fresh_ty_params state' params' in
         let state''', ty_def' = desugar_ty_def ~loc state'' ty_def in
         (state''', (List.map snd params', ty_name', ty_def') :: defs)

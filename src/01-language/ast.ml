@@ -17,19 +17,10 @@ let float_ty_name = TyName.fresh "float"
 let list_ty_name = TyName.fresh "list"
 let empty_ty_name = TyName.fresh "empty"
 
-module TyParam = Symbol.Make ()
-
-type ty_param = TyParam.t
-
-module TyParamMap = Map.Make (TyParam)
-module TyParamSet = Set.Make (TyParam)
-module TyPrintParam = Print.TyPrintParam (TyParamMap)
-module TauPrintParam = Print.TauPrintParam (Context.TauParamMap)
-
 type ty =
   | TyConst of Const.ty
   | TyApply of ty_name * ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
-  | TyParam of ty_param  (** ['a] *)
+  | TyParam of Context.ty_param  (** ['a] *)
   | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
   | TyBox of Context.tau * ty  (** [ [tau]ty ] *)
@@ -70,26 +61,28 @@ let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
         (VariableContext.print_tau tau_print_param tau)
         (print_ty ~max_level:0 ty_print_param tau_print_param ty)
 
-let print_ty_params ty_params ppf =
+let print_ty_params ?max_level ty_pp ty_params ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> ()
-    | [ last ] -> TyParam.print last ppf
+    | [ last ] -> print "%t" (ty_pp last)
     | hd :: tl ->
-        TyParam.print hd ppf;
+        print "%t" (ty_pp hd);
         Format.fprintf ppf ", ";
         print_helper tl
   in
   print_helper ty_params;
   Format.fprintf ppf "]"
 
-let print_tau_params tau_params ppf =
+let print_tau_params ?max_level tau_pp tau_params ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> ()
-    | [ last ] -> Context.TauParamModule.print last ppf
+    | [ last ] -> print "%t" (tau_pp last)
     | hd :: tl ->
-        Context.TauParamModule.print hd ppf;
+        print "%t" (tau_pp hd);
         Format.fprintf ppf ", ";
         print_helper tl
   in
@@ -108,7 +101,9 @@ let rec substitute_tau subst = function
 let rec substitute_ty ty_subst tau_subst = function
   | TyConst _ as ty -> ty
   | TyParam a as ty -> (
-      match TyParamMap.find_opt a ty_subst with None -> ty | Some ty' -> ty')
+      match Context.TyParamMap.find_opt a ty_subst with
+      | None -> ty
+      | Some ty' -> ty')
   | TyApply (ty_name, tys) ->
       TyApply (ty_name, List.map (substitute_ty ty_subst tau_subst) tys)
   | TyTuple tys -> TyTuple (List.map (substitute_ty ty_subst tau_subst) tys)
@@ -126,34 +121,33 @@ let substitute_comp_ty ty_subst tau_subst = function
       CompTy (substitute_ty ty_subst tau_subst ty, substitute_tau tau_subst tau)
 
 let rec free_vars = function
-  | TyConst _ -> TyParamSet.empty
-  | TyParam a -> TyParamSet.singleton a
+  | TyConst _ -> Context.TyParamSet.empty
+  | TyParam a -> Context.TyParamSet.singleton a
   | TyApply (_, tys) ->
       List.fold_left
-        (fun vars ty -> TyParamSet.union vars (free_vars ty))
-        TyParamSet.empty tys
+        (fun vars ty -> Context.TyParamSet.union vars (free_vars ty))
+        Context.TyParamSet.empty tys
   | TyTuple tys ->
       List.fold_left
-        (fun vars ty -> TyParamSet.union vars (free_vars ty))
-        TyParamSet.empty tys
+        (fun vars ty -> Context.TyParamSet.union vars (free_vars ty))
+        Context.TyParamSet.empty tys
   | TyArrow (ty1, CompTy (ty2, _)) ->
-      TyParamSet.union (free_vars ty1) (free_vars ty2)
+      Context.TyParamSet.union (free_vars ty1) (free_vars ty2)
   | TyBox (_, ty) -> free_vars ty
 
-let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf =
-  Variable.print variable ppf;
-  Format.fprintf ppf " -> ";
-  print_ty_params ty_params ppf;
-  Format.fprintf ppf ", ";
-  print_tau_params tau_params ppf;
-  Format.fprintf ppf " ";
-  Format.fprintf ppf "@[%t@]" (print_ty ty_pp tau_pp ty);
-  Format.pp_print_flush ppf ()
-
 let print_variable_context ctx =
-  let ty_pp = TyPrintParam.create () in
-  let tau_pp = TauPrintParam.create () in
-  VariableContext.print_contents ty_pp tau_pp print_var_and_ty ctx
+  let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
+      =
+    Variable.print variable ppf;
+    Format.fprintf ppf " -> ";
+    print_ty_params ty_pp ty_params ppf;
+    Format.fprintf ppf ", ";
+    print_tau_params tau_pp tau_params ppf;
+    Format.fprintf ppf " ";
+    Format.fprintf ppf "@[%t@]" (print_ty ty_pp tau_pp ty);
+    Format.pp_print_flush ppf ()
+  in
+  VariableContext.print_contents print_var_and_ty ctx
 
 let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
 
@@ -196,7 +190,7 @@ and abstraction = pattern * computation
 type ty_def = TySum of (label * ty option) list | TyInline of ty
 
 type command =
-  | TyDef of (ty_param list * ty_name * ty_def) list
+  | TyDef of (Context.ty_param list * ty_name * ty_def) list
   | TopLet of variable * expression
   | TopDo of computation
 
@@ -252,12 +246,12 @@ and print_computation ?max_level c ppf =
         (print_expression ~max_level:1 e1)
         (print_expression ~max_level:0 e2)
   | Delay (tau, c) ->
-      let print_param = TauPrintParam.create () in
+      let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "delay %t %t"
         (VariableContext.print_tau print_param tau)
         (print_computation c)
   | Box (tau, e, (p, c)) ->
-      let print_param = TauPrintParam.create () in
+      let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "box %t[%t] as %t in %t"
         (VariableContext.print_tau print_param tau)
         (print_expression e) (print_pattern p) (print_computation c)

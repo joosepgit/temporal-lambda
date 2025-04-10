@@ -4,7 +4,7 @@ module Const = Language.Const
 module Primitives = Language.Primitives
 
 let poly_type ty =
-  let a = Ast.TyParam.fresh "poly" in
+  let a = Context.TyParamModule.fresh "poly" in
   ([ a ], [], ty (Ast.TyParam a))
 
 let unary_integer_op_ty =
