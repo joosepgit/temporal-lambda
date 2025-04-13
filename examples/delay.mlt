@@ -26,8 +26,8 @@ let bar2 n = delay 23 ()
 
 let foobar () = foo bar bar2 7
 
+let test () = box 3 (higher 5 6) as x in (delay 3 x)
+
 run
-  let foo = Zero in
-  let bar = Succ foo in
-  delay 4 (let foobar = foo_int foo in
-  delay 1 (foo_int bar))
+  test ()
+  (* unbox 3 (test ()) as y in y *)
