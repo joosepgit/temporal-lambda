@@ -127,6 +127,10 @@ and refresh_computation vars = function
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
       Ast.Box (tau, e', abs')
+  | Ast.Unbox (tau, e, abs) ->
+      let e' = refresh_expression vars e in
+      let abs' = refresh_abstraction vars abs in
+      Ast.Unbox (tau, e', abs')
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -160,6 +164,9 @@ and substitute_computation subst = function
   | Ast.Delay (tau, c) -> Ast.Delay (tau, substitute_computation subst c)
   | Ast.Box (tau, e, abs) ->
       Ast.Box
+        (tau, substitute_expression subst e, substitute_abstraction subst abs)
+  | Ast.Unbox (tau, e, abs) ->
+      Ast.Unbox
         (tau, substitute_expression subst e, substitute_abstraction subst abs)
 
 and substitute_abstraction subst (pat, comp) =
@@ -226,6 +233,9 @@ let rec step_computation env = function
       [ (ComputationRedex DoReturn, fun () -> c) ]
       (* TODO: implement with state, currently incorrect *)
   | Ast.Box (_tau, _e, (_p, c)) -> [ (ComputationRedex DoReturn, fun () -> c) ]
+  (* TODO: implement with state, currently incorrect *)
+  | Ast.Unbox (_tau, _e, (_p, c)) ->
+      [ (ComputationRedex DoReturn, fun () -> c) ]
 (* TODO: implement with state, currently incorrect *)
 
 type load_state = {

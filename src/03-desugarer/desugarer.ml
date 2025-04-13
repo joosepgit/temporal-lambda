@@ -140,7 +140,8 @@ and desugar_plain_expression ~loc state = function
       let binds, expr = desugar_expression state term in
       (binds, Untyped.Variant (lbl', Some expr))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
-    | Sugared.Delay _ | Sugared.Box _ | Sugared.Conditional _ ) as term ->
+    | Sugared.Delay _ | Sugared.Box _ | Sugared.Unbox _ | Sugared.Conditional _
+      ) as term ->
       let x = Untyped.Variable.fresh "b" in
       let comp = desugar_computation state { Sugared.it = term; at = loc } in
       let hoist = (Untyped.PVar x, comp) in
@@ -197,6 +198,10 @@ and desugar_plain_computation ~loc state =
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
       (binds, Untyped.Box (Context.TauConst tau, e', abs))
+  | Sugared.Unbox (tau, e, (p, c)) ->
+      let binds, e' = desugar_expression state e in
+      let abs = desugar_abstraction state (p, c) in
+      (binds, Untyped.Unbox (Context.TauConst tau, e', abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

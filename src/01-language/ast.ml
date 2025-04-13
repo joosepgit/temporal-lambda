@@ -184,6 +184,7 @@ and computation =
   | Apply of expression * expression
   | Delay of Context.tau * computation
   | Box of Context.tau * expression * abstraction
+  | Unbox of Context.tau * expression * abstraction
 
 and abstraction = pattern * computation
 
@@ -253,6 +254,11 @@ and print_computation ?max_level c ppf =
   | Box (tau, e, (p, c)) ->
       let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "box %t[%t] as %t in %t"
+        (VariableContext.print_tau print_param tau)
+        (print_expression e) (print_pattern p) (print_computation c)
+  | Unbox (tau, e, (p, c)) ->
+      let print_param = Context.TauPrintParam.create () in
+      print ~at_level:1 "unbox %t[%t] as %t in %t"
         (VariableContext.print_tau print_param tau)
         (print_expression e) (print_pattern p) (print_computation c)
 
