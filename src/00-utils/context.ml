@@ -1,5 +1,6 @@
 module TauParamModule = Symbol.Make ()
 module TauParamMap = Map.Make (TauParamModule)
+module TauParamSet = Set.Make (TauParamModule)
 module TauPrintParam = Print.TauPrintParam (TauParamMap)
 module TyParamModule = Symbol.Make ()
 module TyParamMap = Map.Make (TyParamModule)

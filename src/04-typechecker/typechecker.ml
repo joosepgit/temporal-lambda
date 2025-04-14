@@ -442,8 +442,12 @@ let add_top_definition state x expr =
   let ty_subst, tau_subst = unify state eqs in
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
   let ty'' = simplify_ty ty' in
-  let free_vars = Ast.free_vars ty'' |> Context.TyParamSet.elements in
-  let ty_sch = (free_vars, [], ty'') in
+  let free_vars, free_taus = Ast.free_vars ty'' in
+  let ty_sch =
+    ( free_vars |> Context.TyParamSet.elements,
+      free_taus |> Context.TauParamSet.elements,
+      ty'' )
+  in
   add_external_function x ty_sch state
 
 let add_type_definitions state ty_defs =
