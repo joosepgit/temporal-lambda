@@ -142,23 +142,22 @@ let rec free_vars = function
   | TyArrow (ty1, CompTy (ty2, tau)) ->
       let fv_ty1, fv_tau1 = free_vars ty1 in
       let fv_ty2, fv_tau2 = free_vars ty2 in
-      let fv_tau_param =
-        match tau with
-        | TauParam a -> Context.TauParamSet.singleton a
-        | _ -> Context.TauParamSet.empty
-      in
+      let nested_free_taus = free_taus tau in
       ( Context.TyParamSet.union fv_ty1 fv_ty2,
         Context.TauParamSet.union
           (Context.TauParamSet.union fv_tau1 fv_tau2)
-          fv_tau_param )
+          nested_free_taus )
   | TyBox (tau, ty) ->
       let fv_ty, fv_tau = free_vars ty in
-      let fv_tau_param =
-        match tau with
-        | TauParam a -> Context.TauParamSet.singleton a
-        | _ -> Context.TauParamSet.empty
-      in
-      (fv_ty, Context.TauParamSet.union fv_tau fv_tau_param)
+      let nested_free_taus = free_taus tau in
+      (fv_ty, Context.TauParamSet.union fv_tau nested_free_taus)
+
+and free_taus tau =
+  match tau with
+  | Context.TauConst _ -> Context.TauParamSet.empty
+  | Context.TauParam a -> Context.TauParamSet.singleton a
+  | Context.TauAdd (l, r) ->
+      Context.TauParamSet.union (free_taus l) (free_taus r)
 
 let print_variable_context ctx =
   let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
