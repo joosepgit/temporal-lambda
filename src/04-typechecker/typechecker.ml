@@ -231,7 +231,7 @@ and infer_computation state = function
       let value_ty', comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
         (Either.Left (Ast.TyBox (tau, value_ty), value_ty') :: eqs) @ eqs' )
-  | Ast.Unbox (tau, e, abs) -> (
+  | Ast.Unbox (tau, e, abs) ->
       let context_tau = Ast.VariableContext.tau_sum state.variables in
       let unbox_tau = Ast.VariableContext.eval_tau tau in
       if context_tau < unbox_tau then
@@ -242,16 +242,10 @@ and infer_computation state = function
       let past_context = Ast.VariableContext.subtract_tau tau state.variables in
       let past_state = { state with variables = past_context } in
       let past_value_ty, eqs = infer_expression past_state e in
-      match past_value_ty with
-      | TyBox (box_tau, value_ty) ->
-          let value_ty', comp_ty, eqs' = infer_abstraction state abs in
-          ( comp_ty,
-            Either.Left (Ast.TyBox (box_tau, value_ty), past_value_ty)
-            :: Either.Left (value_ty, value_ty')
-            :: Either.Right (tau, box_tau)
-            :: eqs
-            @ eqs' )
-      | _ -> Error.typing "Unbox error: expected a box type")
+      let value_ty, comp_ty, eqs' = infer_abstraction state abs in
+      ( comp_ty,
+        (Either.Left (Ast.TyBox (tau, value_ty), past_value_ty) :: eqs) @ eqs'
+      )
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -412,6 +406,8 @@ let rec unify state = function
              Context.TauParamMap.empty eqs)
       in
       (add_ty_subst a t ty_subst tau_subst, tau_subst)
+  | Either.Left (Ast.TyBox (tau1, ty1), Ast.TyBox (tau2, ty2)) :: eqs ->
+      unify state (Either.Left (ty1, ty2) :: Either.Right (tau1, tau2) :: eqs)
   | Either.Left (t1, t2) :: _ ->
       let ty_pp = Context.TyPrintParam.create () in
       let tau_pp = Context.TauPrintParam.create () in
