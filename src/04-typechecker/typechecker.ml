@@ -231,17 +231,9 @@ and infer_computation state = function
       let value_ty', comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
         (Either.Left (Ast.TyBox (tau, value_ty), value_ty') :: eqs) @ eqs' )
-  | Ast.Unbox (tau, e, abs) ->
-      let rec eval_tau t =
-        match t with
-        | Context.TauConst c -> c
-        | Context.TauParam _ ->
-            Error.typing "TauParam not supported in tau comparison"
-        | Context.TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
-      in
-
+  | Ast.Unbox (tau, e, abs) -> (
       let context_tau = Ast.VariableContext.tau_sum state.variables in
-      let unbox_tau = eval_tau tau in
+      let unbox_tau = Ast.VariableContext.eval_tau tau in
       if context_tau < unbox_tau then
         Error.typing
           "Unbox error: context_tau (%d) is less than required tau (%d)"
@@ -250,14 +242,16 @@ and infer_computation state = function
       let past_context = Ast.VariableContext.subtract_tau tau state.variables in
       let past_state = { state with variables = past_context } in
       let past_value_ty, eqs = infer_expression past_state e in
-      let box_tau = fresh_tau () in
-      let value_ty, eqs' = infer_expression state e in
-      let value_ty', comp_ty, eqs'' = infer_abstraction state abs in
-      ( comp_ty,
-        Either.Left (Ast.TyBox (box_tau, value_ty), past_value_ty)
-        :: Either.Left (value_ty, value_ty')
-        :: eqs
-        @ eqs' @ eqs'' )
+      match past_value_ty with
+      | TyBox (box_tau, value_ty) ->
+          let value_ty', comp_ty, eqs' = infer_abstraction state abs in
+          ( comp_ty,
+            Either.Left (Ast.TyBox (box_tau, value_ty), past_value_ty)
+            :: Either.Left (value_ty, value_ty')
+            :: Either.Right (tau, box_tau)
+            :: eqs
+            @ eqs' )
+      | _ -> Error.typing "Unbox error: expected a box type")
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in

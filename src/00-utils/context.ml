@@ -67,13 +67,13 @@ struct
     in
     find_in_maps lst
 
+  let rec eval_tau t =
+    match t with
+    | TauConst c -> c
+    | TauParam _ -> Error.typing "TauParam not supported in eval_tau"
+    | TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
+
   let tau_sum (lst : 'a t) : int =
-    let rec eval_tau t =
-      match t with
-      | TauConst c -> c
-      | TauParam _ -> Error.typing "TauParam not supported in tau_sum"
-      | TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
-    in
     let rec sum acc = function
       | [] -> acc
       | Tau n :: rest -> sum (acc + eval_tau n) rest
@@ -81,31 +81,20 @@ struct
     in
     sum 0 lst
 
-  let subtract_tau (input_tau : tau) (lst : 'a t) : 'a t =
-    let rec eval_tau t =
-      match t with
-      | TauConst c -> c
-      | TauParam _ -> Error.typing "TauParam not supported in subtract_tau"
-      | TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
-    in
-
-    let target_sub = eval_tau input_tau in
-
-    let rec subtract acc remaining target =
-      match remaining with
-      | [] ->
-          if target = 0 then List.rev acc
-          else Error.typing "Not enough tau to subtract"
-      | VarMap _ :: rest -> subtract acc rest target
-      | Tau t :: rest ->
-          let value = eval_tau t in
-          if value <= target then subtract acc rest (target - value)
+  let subtract_tau (tau : tau) (lst : 'a t) : 'a t =
+    let rec subtract remaining target =
+      match (remaining, target) with
+      | rem, 0 -> rem
+      | [], _ -> Error.typing "Not enough tau to subtract"
+      | VarMap _ :: rest, _ -> subtract rest target
+      | Tau t :: rest, tgt_val ->
+          let t_val = eval_tau t in
+          if tgt_val > t_val then subtract rest (tgt_val - t_val)
           else
-            let remaining_tau = TauConst (value - target) in
-            List.rev_append acc (Tau remaining_tau :: rest)
+            let remaining_tau = TauConst (t_val - tgt_val) in
+            Tau remaining_tau :: rest
     in
-
-    subtract [] lst target_sub
+    subtract lst (eval_tau tau)
 
   (* Print tau abstractions *)
   let rec print_tau ?max_level tau_pp tau ppf =
