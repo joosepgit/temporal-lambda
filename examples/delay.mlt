@@ -1,0 +1,38 @@
+type nat =
+  | Zero
+  | Succ of nat
+
+let foo_int =
+  function
+  | Zero -> 0
+  | Succ m -> 1
+
+let foo_int_bad =
+  function
+  | Zero -> delay 3 0
+  | Succ m -> delay 3 2
+
+let del n = delay 9 (foo_int_bad (delay 2 (Succ n)))
+
+let higher n = fun m -> delay 5 (n + m)
+
+let higher2 n = delay 10 (fun m -> delay 5 (n + m))
+
+let foo f f2 n = f n; f n; f n; f2 n; f2 n;  delay 42 ()
+
+let bar n = delay 24 ()
+
+let bar2 n = delay 23 ()
+
+let foobar () = foo bar bar2 7
+
+let test () = box 3 (higher 5 6) as x in (delay 3 x)
+
+let test2 () = box 3 (42) as r in delay 3 (unbox 3 r as y in y)
+
+(* 2+1 types correctly, set both delays to 1 to see unification failure *)
+let test3 () = delay 2 (box 3 (42) as r in delay 1 (unbox 3 r as y in y))
+
+run
+  test3 ()
+  (* unbox 3 (test ()) as y in y *)

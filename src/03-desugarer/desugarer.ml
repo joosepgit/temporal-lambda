@@ -15,7 +15,7 @@ let add_unique ~loc kind str symb string_map =
 
 type state = {
   ty_names : Untyped.ty_name StringMap.t;
-  ty_params : Untyped.ty_param StringMap.t;
+  ty_params : Context.ty_param StringMap.t;
   variables : Untyped.variable StringMap.t;
   labels : Untyped.label StringMap.t;
 }
@@ -140,7 +140,8 @@ and desugar_plain_expression ~loc state = function
       let binds, expr = desugar_expression state term in
       (binds, Untyped.Variant (lbl', Some expr))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
-    | Sugared.Conditional _ ) as term ->
+    | Sugared.Delay _ | Sugared.Box _ | Sugared.Unbox _ | Sugared.Conditional _
+      ) as term ->
       let x = Untyped.Variable.fresh "b" in
       let comp = desugar_computation state { Sugared.it = term; at = loc } in
       let hoist = (Untyped.PVar x, comp) in
@@ -190,6 +191,17 @@ and desugar_plain_computation ~loc state =
       let state', f, comp1 = desugar_let_rec_def state (x, term1) in
       let c = desugar_computation state' term2 in
       ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
+  | Sugared.Delay (tau, c) ->
+      let c' = desugar_computation state c in
+      ([], Untyped.Delay (Context.TauConst tau, c'))
+  | Sugared.Box (tau, e, (p, c)) ->
+      let binds, e' = desugar_expression state e in
+      let abs = desugar_abstraction state (p, c) in
+      (binds, Untyped.Box (Context.TauConst tau, e', abs))
+  | Sugared.Unbox (tau, e, (p, c)) ->
+      let binds, e' = desugar_expression state e in
+      let abs = desugar_abstraction state (p, c) in
+      (binds, Untyped.Unbox (Context.TauConst tau, e', abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
@@ -285,7 +297,9 @@ let desugar_command state { Sugared.it = cmd; at = loc } =
       let new_names = List.map def_name defs in
       let state' = add_fresh_ty_names ~loc state new_names in
       let aux (params, _, ty_def) (_, ty_name') (state', defs) =
-        let params' = List.map (fun a -> (a, Untyped.TyParam.fresh a)) params in
+        let params' =
+          List.map (fun a -> (a, Context.TyParamModule.fresh a)) params
+        in
         let state'' = add_fresh_ty_params state' params' in
         let state''', ty_def' = desugar_ty_def ~loc state'' ty_def in
         (state''', (List.map snd params', ty_name', ty_def') :: defs)

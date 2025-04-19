@@ -17,7 +17,7 @@
 %token TYPE ARROW OF HASH
 %token MATCH WITH FUNCTION
 %token RUN LET REC AND IN
-%token DELAY
+%token DELAY BOX UNBOX
 %token FUN BAR BARBAR
 %token IF THEN ELSE
 %token PLUS STAR MINUS MINUSDOT
@@ -89,10 +89,14 @@ plain_term:
     { Let ({it= PNonbinding; at= t1.at}, t1, t2) }
   | IF t_cond = comma_term THEN t_true = term ELSE t_false = term
     { Conditional (t_cond, t_true, t_false) }
+  | DELAY tau = INT t = term
+    { Delay (tau, t) }
+  | BOX tau = INT e = term AS p = pattern IN c = term
+    { Box (tau, e, (p, c)) }
+  | UNBOX tau = INT e = term AS p = pattern IN c = term
+    { Unbox (tau, e, (p, c)) }
   | t = plain_comma_term
     { t }
-  | DELAY d = INT t = plain_comma_term
-    { ignore d; t }
 
 comma_term: mark_position(plain_comma_term) { $1 }
 plain_comma_term:

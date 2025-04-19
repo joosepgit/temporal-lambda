@@ -1,4 +1,5 @@
 module Ast = Language.Ast
+module Context = Utils.Context
 
 module type S = sig
   type load_state
@@ -10,7 +11,7 @@ module type S = sig
 
   val load_ty_def :
     load_state ->
-    (Ast.ty_param list * Ast.ty_name * Ast.ty_def) list ->
+    (Context.ty_param list * Ast.ty_name * Ast.ty_def) list ->
     load_state
 
   val load_top_let : load_state -> Ast.variable -> Ast.expression -> load_state

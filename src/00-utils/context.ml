@@ -1,11 +1,20 @@
 module TauParamModule = Symbol.Make ()
+module TauParamMap = Map.Make (TauParamModule)
+module TauParamSet = Set.Make (TauParamModule)
+module TauPrintParam = Print.TauPrintParam (TauParamMap)
+module TyParamModule = Symbol.Make ()
+module TyParamMap = Map.Make (TyParamModule)
+module TyParamSet = Set.Make (TyParamModule)
+module TyPrintParam = Print.TyPrintParam (TyParamMap)
+
+type tau_param = TauParamModule.t
+type ty_param = TyParamModule.t
+type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
 
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t) =
 struct
-  type tau_param = TauParamModule.t
-  type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
   type 'a map_or_tau = VarMap of 'a VariableMap.t | Tau of tau
   type 'a t = 'a map_or_tau list
 
@@ -58,39 +67,60 @@ struct
     in
     find_in_maps lst
 
+  let abstract_tau_sum (lst : 'a t) : tau =
+    let rec sum acc = function
+      | [] -> acc
+      | Tau n :: rest -> sum (TauAdd (acc, n)) rest
+      | VarMap _ :: rest -> sum acc rest
+    in
+    sum (TauConst 0) lst
+
+  let rec eval_tau t =
+    match t with
+    | TauConst c -> c
+    | TauParam _ -> Error.typing "TauParam not supported in eval_tau"
+    | TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
+
   (* Print tau abstractions *)
-  let rec print_tau print_param tau ppf =
+  let rec print_tau ?max_level tau_pp tau ppf =
+    let print ?at_level = Print.print ?max_level ?at_level ppf in
     match tau with
-    | TauConst i -> Format.fprintf ppf "TauConst(%d)" i
-    | TauParam p -> Format.fprintf ppf "TauParam(%t)" (TauParamModule.print p)
+    | TauConst i -> Format.fprintf ppf "%d" i
+    | TauParam p -> print "%t" (tau_pp p)
     | TauAdd (t1, t2) ->
-        Format.fprintf ppf "TauAdd(@[%t, %t@])"
-          (fun ppf -> print_tau print_param t1 ppf)
-          (fun ppf -> print_tau print_param t2 ppf)
+        Format.fprintf ppf "@[%t + %t@]"
+          (fun ppf -> print_tau tau_pp t1 ppf)
+          (fun ppf -> print_tau tau_pp t2 ppf)
 
   (* Print the contents of the list, reversing it before printing *)
-  let print_contents print_param print_var_and_ty lst =
+  let print_contents print_var_and_ty lst =
     let rec print_list lst ppf =
       match lst with
       | [] -> ()
       | VarMap map :: rest ->
-          Printf.printf "VarMap: {\n";
+          Print.print ppf "VarMap: {\n";
           let elements = VariableMap.bindings map in
           let rec print_elements = function
             | [] -> ()
             | entry :: tl ->
-                print_var_and_ty entry ppf;
-                Printf.printf "\n";
+                let ty_pp = TyPrintParam.create () in
+                let tau_pp = TauPrintParam.create () in
+                print_var_and_ty ty_pp tau_pp entry ppf;
+                Print.print ppf "\n";
                 print_elements tl
           in
           print_elements elements;
-          Printf.printf "}\n";
+          Print.print ppf "}\n";
           print_list rest ppf
       | Tau n :: rest ->
-          print_tau print_param n ppf;
-          Printf.printf "\n";
+          let tau_pp = TauPrintParam.create () in
+          print_tau tau_pp n ppf;
+          Print.print ppf "\n";
           print_list rest ppf
     in
+    let ppf = Format.std_formatter in
+    Print.print ppf "VariableContext: [\n";
     (* Reverse the list before printing *)
-    print_list (List.rev lst) Format.std_formatter
+    print_list (List.rev lst) ppf;
+    Print.print ppf "]\n"
 end

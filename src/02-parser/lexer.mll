@@ -33,6 +33,8 @@
     ("type", TYPE);
     ("with", WITH);
     ("delay", DELAY);
+    ("box", BOX);
+    ("unbox", UNBOX);
   ]
 
   let escaped_characters = [
