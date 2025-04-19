@@ -1,7 +1,7 @@
 type ('a, 'b, 'c) t =
-  | TypeConstraint of 'a
-  | TauConstraint of 'b
-  | TauGeq of 'c
+  | TypeConstraint of ('a * 'a)
+  | TauConstraint of ('b * 'b)
+  | TauGeq of ('c * 'c)
 
 let type_constraint v = TypeConstraint v
 let tau_constraint v = TauConstraint v
