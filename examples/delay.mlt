@@ -30,7 +30,9 @@ let test () = box 3 (higher 5 6) as x in (delay 3 x)
 
 let test2 () = box 3 (42) as r in delay 3 (unbox 3 r as y in y)
 
-let test3 () = box 3 (42) as r in delay 4 (unbox 3 r as y in y)
+(* 2+1 types correctly, set both delays to 1 to see unification failure *)
+let test3 () = delay 2 (box 3 (42) as r in delay 1 (unbox 3 r as y in y))
 
 run
+  test3 ()
   (* unbox 3 (test ()) as y in y *)

@@ -67,34 +67,19 @@ struct
     in
     find_in_maps lst
 
+  let abstract_tau_sum (lst : 'a t) : tau =
+    let rec sum acc = function
+      | [] -> acc
+      | Tau n :: rest -> sum (TauAdd (acc, n)) rest
+      | VarMap _ :: rest -> sum acc rest
+    in
+    sum (TauConst 0) lst
+
   let rec eval_tau t =
     match t with
     | TauConst c -> c
     | TauParam _ -> Error.typing "TauParam not supported in eval_tau"
     | TauAdd (t1, t2) -> eval_tau t1 + eval_tau t2
-
-  let tau_sum (lst : 'a t) : int =
-    let rec sum acc = function
-      | [] -> acc
-      | Tau n :: rest -> sum (acc + eval_tau n) rest
-      | VarMap _ :: rest -> sum acc rest
-    in
-    sum 0 lst
-
-  let subtract_tau (tau : tau) (lst : 'a t) : 'a t =
-    let rec subtract remaining target =
-      match (remaining, target) with
-      | rem, 0 -> rem
-      | [], _ -> Error.typing "Not enough tau to subtract"
-      | VarMap _ :: rest, _ -> subtract rest target
-      | Tau t :: rest, tgt_val ->
-          let t_val = eval_tau t in
-          if tgt_val > t_val then subtract rest (tgt_val - t_val)
-          else
-            let remaining_tau = TauConst (t_val - tgt_val) in
-            Tau remaining_tau :: rest
-    in
-    subtract lst (eval_tau tau)
 
   (* Print tau abstractions *)
   let rec print_tau ?max_level tau_pp tau ppf =
