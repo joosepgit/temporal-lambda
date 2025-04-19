@@ -41,6 +41,37 @@ let initial_state =
             ] ));
   }
 
+let print_type_constraint t1 t2 =
+  let ty_pp = Context.TyPrintParam.create () in
+  let tau_pp = Context.TauPrintParam.create () in
+  Format.printf "TypeConstraint(%t = %t)"
+    (Ast.print_ty ty_pp tau_pp t1)
+    (Ast.print_ty ty_pp tau_pp t2)
+
+let print_tau_constraint tau1 tau2 =
+  let tau_pp = Context.TauPrintParam.create () in
+  Format.printf "TauConstraint(%t = %t)"
+    (Ast.VariableContext.print_tau tau_pp tau1)
+    (Ast.VariableContext.print_tau tau_pp tau2)
+
+let print_tau_geq tau1 tau2 =
+  let tau_pp = Context.TauPrintParam.create () in
+  Format.printf "TauGeq(%t >= %t)"
+    (Ast.VariableContext.print_tau tau_pp tau1)
+    (Ast.VariableContext.print_tau tau_pp tau2)
+
+let print_constraints constraints =
+  Format.fprintf Format.std_formatter "[%a]"
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       (fun _ppf constraint_ ->
+         match constraint_ with
+         | Constraint.TypeConstraint (t1, t2) -> print_type_constraint t1 t2
+         | Constraint.TauConstraint (tau1, tau2) ->
+             print_tau_constraint tau1 tau2
+         | Constraint.TauGeq (tau1, tau2) -> print_tau_geq tau1 tau2))
+    constraints
+
 let rec check_ty state = function
   | Ast.TyConst _ -> ()
   | TyApply (ty_name, tys) ->
@@ -236,9 +267,24 @@ and infer_computation state = function
       let abstract_context_tau =
         Ast.VariableContext.abstract_tau_sum state.variables
       in
-      let past_value_ty, eqs = infer_expression state e in
+      let past_context = Ast.VariableContext.subtract_tau tau state.variables in
+      let past_state = { state with variables = past_context } in
+      let past_value_ty, eqs =
+        try infer_expression past_state e
+        with Context.VariableNotFound var ->
+          Error.typing
+            "Variable %t did not exist in boxed form %t temporal units ago, \
+             unboxing too soon or with too large temporal value?"
+            (fun ppf -> Format.fprintf ppf "%s" var)
+            (fun ppf ->
+              Ast.VariableContext.print_tau
+                (Context.TauPrintParam.create ())
+                tau ppf)
+      in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
+        (* NB! Ensure that Unbox tau and value_ty are passed as the LHS TyBox,
+         used later to allow unbox tau >= box tau using TauGeq constraints *)
         Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), past_value_ty)
         :: Constraint.TauGeq (abstract_context_tau, tau)
         :: eqs
@@ -331,7 +377,11 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
         (Context.TyParamMap.empty, Context.TauParamMap.empty)
       else if current_unsolved_size = prev_unsolved_size then
         (* No progress made on last pass — constraints are stuck *)
-        Error.typing "Unification stuck: could not solve remaining constraints"
+        Error.typing
+          "Unification stuck - could not solve remaining constraints %t"
+          (fun ppf ->
+            print_constraints unsolved;
+            Format.fprintf ppf "%s" "")
       else
         (* Retry with deferred constraints *)
         unify_with_accum state current_unsolved_size [] unsolved
@@ -459,7 +509,7 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
     :: eqs ->
       unify_with_accum state prev_unsolved_size unsolved
         (Constraint.TypeConstraint (ty1, ty2)
-        :: Constraint.TauConstraint (tau1, tau2)
+        :: Constraint.TauGeq (tau1, tau2)
         :: eqs)
   | Constraint.TypeConstraint (t1, t2) :: _ ->
       let ty_pp = Context.TyPrintParam.create () in
