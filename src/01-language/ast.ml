@@ -49,7 +49,7 @@ let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
       print ~at_level:3 "(%t → %t # %t)"
         (print_ty ~max_level:2 ty_print_param tau_print_param ty1)
         (print_ty ~max_level:3 ty_print_param tau_print_param ty2)
-        (VariableContext.print_tau tau_print_param tau)
+        (Context.print_tau tau_print_param tau)
   | TyTuple [] -> print "unit"
   | TyTuple tys ->
       print ~at_level:2 "%t"
@@ -58,7 +58,7 @@ let rec print_ty ?max_level ty_print_param tau_print_param p ppf =
            tys)
   | TyBox (tau, ty) ->
       print ~at_level:1 "[%t]%t"
-        (VariableContext.print_tau tau_print_param tau)
+        (Context.print_tau tau_print_param tau)
         (print_ty ~max_level:0 ty_print_param tau_print_param ty)
 
 let print_ty_params ?max_level ty_pp ty_params ppf =
@@ -273,17 +273,17 @@ and print_computation ?max_level c ppf =
   | Delay (tau, c) ->
       let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "delay %t %t"
-        (VariableContext.print_tau print_param tau)
+        (Context.print_tau print_param tau)
         (print_computation c)
   | Box (tau, e, (p, c)) ->
       let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "box %t[%t] as %t in %t"
-        (VariableContext.print_tau print_param tau)
+        (Context.print_tau print_param tau)
         (print_expression e) (print_pattern p) (print_computation c)
   | Unbox (tau, e, (p, c)) ->
       let print_param = Context.TauPrintParam.create () in
       print ~at_level:1 "unbox %t[%t] as %t in %t"
-        (VariableContext.print_tau print_param tau)
+        (Context.print_tau print_param tau)
         (print_expression e) (print_pattern p) (print_computation c)
 
 and print_abstraction (p, c) ppf =

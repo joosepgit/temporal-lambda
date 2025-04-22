@@ -233,7 +233,7 @@ let view_steps (run_model : Model.run_model) steps =
    :: List.mapi view_step steps)
 
 let run_view (run_model : Model.run_model) =
-  let steps = Model.Backend.steps run_model.run_state in
+  let _env, steps = Model.Backend.steps run_model.run_state in
   let selected_step =
     Option.map (List.nth steps) run_model.selected_step_index
   in

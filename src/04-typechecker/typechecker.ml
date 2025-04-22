@@ -51,14 +51,14 @@ let print_type_constraint t1 t2 =
 let print_tau_constraint tau1 tau2 =
   let tau_pp = Context.TauPrintParam.create () in
   Format.printf "TauConstraint(%t = %t)"
-    (Ast.VariableContext.print_tau tau_pp tau1)
-    (Ast.VariableContext.print_tau tau_pp tau2)
+    (Context.print_tau tau_pp tau1)
+    (Context.print_tau tau_pp tau2)
 
 let print_tau_geq tau1 tau2 =
   let tau_pp = Context.TauPrintParam.create () in
   Format.printf "TauGeq(%t >= %t)"
-    (Ast.VariableContext.print_tau tau_pp tau1)
-    (Ast.VariableContext.print_tau tau_pp tau2)
+    (Context.print_tau tau_pp tau1)
+    (Context.print_tau tau_pp tau2)
 
 let print_constraints constraints =
   Format.fprintf Format.std_formatter "[%a]"
@@ -277,9 +277,7 @@ and infer_computation state = function
              unboxing too soon or with too large temporal value?"
             (fun ppf -> Format.fprintf ppf "%s" var)
             (fun ppf ->
-              Ast.VariableContext.print_tau
-                (Context.TauPrintParam.create ())
-                tau ppf)
+              Context.print_tau (Context.TauPrintParam.create ()) tau ppf)
       in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
@@ -440,11 +438,11 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
           if tau_smaller_val > tau_greater_or_equal_val then
             Error.typing "Cannot unify temporal values %t >= %t"
               (fun ppf ->
-                Ast.VariableContext.print_tau
+                Context.print_tau
                   (Context.TauPrintParam.create ())
                   tau_greater_or_equal_simplified ppf)
               (fun ppf ->
-                Ast.VariableContext.print_tau
+                Context.print_tau
                   (Context.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
           else unify_with_accum state prev_unsolved_size unsolved eqs)

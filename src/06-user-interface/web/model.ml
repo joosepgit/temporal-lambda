@@ -45,8 +45,8 @@ let run_model_make_step run_model (step : Backend.step) =
 
 let rec run_model_make_random_steps run_model num_steps =
   match (num_steps, Backend.steps run_model.run_state) with
-  | 0, _ | _, [] -> run_model
-  | _, steps ->
+  | 0, _ | _, (_, []) -> run_model
+  | _, (_env, steps) ->
       let i = Random.int (List.length steps) in
       let step = List.nth steps i in
       let run_model' = run_model_make_step run_model step in

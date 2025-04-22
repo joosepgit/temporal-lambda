@@ -23,8 +23,8 @@ let parse_args_to_config () =
 let rec run (state : Backend.run_state) =
   Backend.view_run_state state;
   match Backend.steps state with
-  | [] -> ()
-  | steps ->
+  | env, [] -> env
+  | _env, steps ->
       let i = Random.int (List.length steps) in
       let step = List.nth steps i in
       let state' = step.next_state () in
@@ -48,7 +48,8 @@ let main () =
     in
     Ast.print_variable_context vars_with_nat_ex;
 
-    run run_state
+    let env = run run_state in
+    env
   with Error.Error error ->
     Error.print error;
     exit 1

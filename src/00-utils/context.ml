@@ -13,6 +13,16 @@ type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
 
 exception VariableNotFound of string
 
+let rec print_tau ?max_level tau_pp tau ppf =
+  let print ?at_level = Print.print ?max_level ?at_level ppf in
+  match tau with
+  | TauConst i -> Format.fprintf ppf "%d" i
+  | TauParam p -> print "%t" (tau_pp p)
+  | TauAdd (t1, t2) ->
+      Format.fprintf ppf "@[%t + %t@]"
+        (fun ppf -> print_tau tau_pp t1 ppf)
+        (fun ppf -> print_tau tau_pp t2 ppf)
+
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t) =
@@ -87,16 +97,6 @@ struct
             Tau remaining_tau :: rest
     in
     subtract lst (eval_tau tau)
-
-  let rec print_tau ?max_level tau_pp tau ppf =
-    let print ?at_level = Print.print ?max_level ?at_level ppf in
-    match tau with
-    | TauConst i -> Format.fprintf ppf "%d" i
-    | TauParam p -> print "%t" (tau_pp p)
-    | TauAdd (t1, t2) ->
-        Format.fprintf ppf "@[%t + %t@]"
-          (fun ppf -> print_tau tau_pp t1 ppf)
-          (fun ppf -> print_tau tau_pp t2 ppf)
 
   let print_contents print_var_and_ty lst =
     let rec print_list lst ppf =

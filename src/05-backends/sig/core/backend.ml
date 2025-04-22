@@ -22,5 +22,5 @@ module type S = sig
   type step = { label : step_label; next_state : unit -> run_state }
 
   val run : load_state -> run_state
-  val steps : run_state -> step list
+  val steps : run_state -> Interpreter.environment * step list
 end

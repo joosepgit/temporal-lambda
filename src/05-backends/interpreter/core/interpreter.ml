@@ -1,14 +1,17 @@
 open Utils
 module Ast = Language.Ast
 module Const = Language.Const
+module State = State.Make (Ast.Variable) (Map.Make (Ast.Variable))
 
 type environment = {
+  state : (Context.tau * Ast.expression) State.t;
   variables : Ast.expression Ast.VariableContext.t;
   builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableContext.t;
 }
 
 let initial_environment =
   {
+    state = State.empty;
     variables = Ast.VariableContext.empty;
     builtin_functions = Ast.VariableContext.empty;
   }
@@ -197,11 +200,13 @@ let rec eval_function env = function
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
 let step_in_context step env redCtx ctx term =
-  let terms' = step env term in
-  List.map (fun (red, term') -> (redCtx red, fun () -> ctx (term' ()))) terms'
+  let env', terms' = step env term in
+  ( env',
+    List.map (fun (red, term') -> (redCtx red, fun () -> ctx (term' ()))) terms'
+  )
 
 let rec step_computation env = function
-  | Ast.Return _ -> []
+  | Ast.Return _ -> (env, [])
   | Ast.Match (expr, cases) ->
       let rec find_case = function
         | (pat, comp) :: cases -> (
@@ -211,12 +216,12 @@ let rec step_computation env = function
             | exception PatternMismatch -> find_case cases)
         | [] -> []
       in
-      find_case cases
+      (env, find_case cases)
   | Ast.Apply (expr1, expr2) ->
       let f = eval_function env expr1 in
-      [ (ComputationRedex ApplyFun, fun () -> f expr2) ]
+      (env, [ (ComputationRedex ApplyFun, fun () -> f expr2) ])
   | Ast.Do (comp1, comp2) -> (
-      let comps1' =
+      let env', comps1' =
         step_in_context step_computation env
           (fun red -> DoCtx red)
           (fun comp1' -> Ast.Do (comp1', comp2))
@@ -226,17 +231,25 @@ let rec step_computation env = function
       | Ast.Return expr ->
           let pat, comp2' = comp2 in
           let subst = match_pattern_with_expression env pat expr in
-          (ComputationRedex DoReturn, fun () -> substitute subst comp2')
-          :: comps1'
-      | _ -> comps1')
-  | Ast.Delay (_tau, c) ->
-      [ (ComputationRedex DoReturn, fun () -> c) ]
-      (* TODO: implement with state, currently incorrect *)
-  | Ast.Box (_tau, _e, (_p, c)) -> [ (ComputationRedex DoReturn, fun () -> c) ]
-  (* TODO: implement with state, currently incorrect *)
-  | Ast.Unbox (_tau, _e, (_p, c)) ->
-      [ (ComputationRedex DoReturn, fun () -> c) ]
-(* TODO: implement with state, currently incorrect *)
+          ( env',
+            (ComputationRedex DoReturn, fun () -> substitute subst comp2')
+            :: comps1' )
+      | _ -> (env', comps1'))
+  | Ast.Delay (tau, comp) ->
+      let env' = { env with state = State.add_temp tau env.state } in
+      (env', [ (ComputationRedex DoReturn, fun () -> comp) ])
+  | Ast.Box (tau, expr, (pat, comp)) ->
+      let subst = match_pattern_with_expression env pat expr in
+      let state_with_boxed_vars =
+        Ast.VariableMap.fold
+          (fun var expr acc -> State.add_resource var (tau, expr) acc)
+          subst env.state
+      in
+      let env' = { env with state = state_with_boxed_vars } in
+      (env', [ (ComputationRedex DoReturn, fun () -> substitute subst comp) ])
+  | Ast.Unbox (_tau, expr, (pat, comp)) ->
+      let subst = match_pattern_with_expression env pat expr in
+      (env, [ (ComputationRedex DoReturn, fun () -> substitute subst comp) ])
 
 type load_state = {
   environment : environment;
@@ -283,20 +296,27 @@ type step = { label : step_label; next_state : unit -> run_state }
 let run load_state = load_state
 
 let steps = function
-  | { computations = []; _ } -> []
+  | { computations = []; environment } -> (environment, [])
   | { computations = Ast.Return _ :: comps; environment } ->
-      [
-        {
-          label = Return;
-          next_state = (fun () -> { computations = comps; environment });
-        };
-      ]
-  | { computations = comp :: comps; environment } ->
-      List.map
-        (fun (red, comp') ->
+      ( environment,
+        [
           {
-            label = ComputationReduction red;
-            next_state =
-              (fun () -> { computations = comp' () :: comps; environment });
-          })
-        (step_computation environment comp)
+            label = Return;
+            next_state = (fun () -> { computations = comps; environment });
+          };
+        ] )
+  | { computations = comp :: comps; environment } ->
+      let environment', redexes = step_computation environment comp in
+      ( environment',
+        List.map
+          (fun (red, thunk) ->
+            {
+              label = ComputationReduction red;
+              next_state =
+                (fun () ->
+                  {
+                    computations = thunk () :: comps;
+                    environment = environment';
+                  });
+            })
+          redexes )
