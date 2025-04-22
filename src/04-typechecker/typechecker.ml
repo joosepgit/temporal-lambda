@@ -283,8 +283,6 @@ and infer_computation state = function
       in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
-        (* NB! Ensure that Unbox tau and value_ty are passed as the LHS TyBox,
-         used later to allow unbox tau >= box tau using TauGeq constraints *)
         Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), past_value_ty)
         :: Constraint.TauGeq (abstract_context_tau, tau)
         :: eqs
@@ -509,7 +507,7 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
     :: eqs ->
       unify_with_accum state prev_unsolved_size unsolved
         (Constraint.TypeConstraint (ty1, ty2)
-        :: Constraint.TauGeq (tau1, tau2)
+        :: Constraint.TauConstraint (tau1, tau2)
         :: eqs)
   | Constraint.TypeConstraint (t1, t2) :: _ ->
       let ty_pp = Context.TyPrintParam.create () in
