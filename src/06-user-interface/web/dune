@@ -24,4 +24,7 @@
    (echo "({|Natural numbers as an inductive type|}, {|")
    (cat ../../../examples/nat.mlt)
    (echo "|});")
+   (echo "({|Temporal operations|}, {|")
+   (cat ../../../examples/delay.mlt)
+   (echo "|});")
    (echo "]"))))

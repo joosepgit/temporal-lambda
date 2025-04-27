@@ -19,7 +19,12 @@ module type S = sig
 
   type run_state
   type step_label
-  type step = { label : step_label; next_state : unit -> run_state }
+
+  type step = {
+    environment : Ast.evaluation_environment;
+    label : step_label;
+    next_state : unit -> run_state;
+  }
 
   val run : load_state -> run_state
   val steps : run_state -> step list

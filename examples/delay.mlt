@@ -30,7 +30,16 @@ let test () = box 3 (higher 5 6) as x in (delay 3 x)
 
 let test2 () = box 3 (42) as r in delay 3 (unbox 3 r as y in y)
 
-let test3 () = delay 2 (box 3 (42) as r in delay 5 (unbox 4 r as y in y))
+let test3 () = delay 2 (
+  box 3 (
+    43,
+    8+91,
+    (let h = "test" in delay 10 (h))
+  ) as r
+  in delay 3 (
+    unbox 3 r as (n, a, h)
+    in (n, h))
+)
 
 run
   test3 ()

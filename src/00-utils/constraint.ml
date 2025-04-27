@@ -83,9 +83,9 @@ let compare ~type_constraint ~tau_constraint ~tau_geq e1 e2 =
   | TypeConstraint v1, TypeConstraint v2 -> type_constraint v1 v2
   | TauConstraint v1, TauConstraint v2 -> tau_constraint v1 v2
   | TauGeq v1, TauGeq v2 -> tau_geq v1 v2
-  | TypeConstraint _, TauConstraint _ -> -1
-  | TypeConstraint _, TauGeq _ -> -1
-  | TauConstraint _, TypeConstraint _ -> 0
-  | TauConstraint _, TauGeq _ -> 0
-  | TauGeq _, TypeConstraint _ -> 1
-  | TauGeq _, TauConstraint _ -> 1
+  | TypeConstraint _, TauConstraint _ -> 1
+  | TypeConstraint _, TauGeq _ -> 1
+  | TauConstraint _, TypeConstraint _ -> -1
+  | TauConstraint _, TauGeq _ -> 1
+  | TauGeq _, TypeConstraint _ -> -1
+  | TauGeq _, TauConstraint _ -> -1
