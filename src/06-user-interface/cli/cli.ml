@@ -23,11 +23,13 @@ let parse_args_to_config () =
 let rec run (state : Backend.run_state) =
   Backend.view_run_state state;
   match Backend.steps state with
-  | env, [] -> env
-  | _env, steps ->
+  | [] -> ()
+  | steps ->
       let i = Random.int (List.length steps) in
       let step = List.nth steps i in
       let state' = step.next_state () in
+      if Backend.steps state' = [] then
+        print_string (Ast.print_interpreter_state step.environment.state);
       run state'
 
 let main () =
@@ -41,15 +43,8 @@ let main () =
     in
     let state' = List.fold_left Loader.load_file state config.filenames in
     let run_state = Backend.run state'.backend in
-
-    (* Display variable map contents with dummy nat value *)
-    let vars_with_nat_ex =
-      Ast.add_dummy_nat_to_ctx (TauConst 5) state'.typechecker.variables
-    in
-    Ast.print_variable_context vars_with_nat_ex;
-
-    let env = run run_state in
-    env
+    Ast.print_variable_context state'.typechecker.variables;
+    run run_state
   with Error.Error error ->
     Error.print error;
     exit 1

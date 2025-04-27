@@ -159,22 +159,6 @@ and free_taus tau =
   | Context.TauAdd (l, r) ->
       Context.TauParamSet.union (free_taus l) (free_taus r)
 
-let print_variable_context ctx =
-  let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
-      =
-    Variable.print variable ppf;
-    Format.fprintf ppf " -> ";
-    print_ty_params ty_pp ty_params ppf;
-    Format.fprintf ppf ", ";
-    print_tau_params tau_pp tau_params ppf;
-    Format.fprintf ppf " ";
-    Format.fprintf ppf "@[%t@]" (print_ty ty_pp tau_pp ty);
-    Format.pp_print_flush ppf ()
-  in
-  VariableContext.print_contents print_var_and_ty ctx
-
-let add_dummy_nat_to_ctx nat ctx = VariableContext.add_temp nat ctx
-
 type variable = Variable.t
 type label = Label.t
 
@@ -218,6 +202,12 @@ type command =
   | TyDef of (Context.ty_param list * ty_name * ty_def) list
   | TopLet of variable * expression
   | TopDo of computation
+
+type evaluation_environment = {
+  state : expression VariableContext.t;
+  variables : expression VariableContext.t;
+  builtin_functions : (expression -> computation) VariableContext.t;
+}
 
 let rec print_pattern ?max_level p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -297,4 +287,28 @@ let string_of_expression e =
 
 let string_of_computation c =
   print_computation c Format.str_formatter;
+  Format.flush_str_formatter ()
+
+let print_variable_context ctx =
+  let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
+      =
+    Variable.print variable ppf;
+    Format.fprintf ppf " -> ";
+    print_ty_params ty_pp ty_params ppf;
+    Format.fprintf ppf ", ";
+    print_tau_params tau_pp tau_params ppf;
+    Format.fprintf ppf " ";
+    Format.fprintf ppf "@[%t@]" (print_ty ty_pp tau_pp ty);
+    Format.pp_print_flush ppf ()
+  in
+  VariableContext.print_vars_and_tys print_var_and_ty ctx
+
+let print_interpreter_state ctx =
+  let print_var_and_expr (variable, expr) ppf =
+    Variable.print variable ppf;
+    Format.fprintf ppf " -> ";
+    print_expression expr ppf
+  in
+  let ppf = Format.str_formatter in
+  VariableContext.print_vars_and_exprs print_var_and_expr ctx ppf;
   Format.flush_str_formatter ()

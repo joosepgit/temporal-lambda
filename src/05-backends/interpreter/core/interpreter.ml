@@ -1,44 +1,37 @@
 open Utils
 module Ast = Language.Ast
 module Const = Language.Const
-module State = State.Make (Ast.Variable) (Map.Make (Ast.Variable))
 
-type environment = {
-  state : (Context.tau * Ast.expression) State.t;
-  variables : Ast.expression Ast.VariableContext.t;
-  builtin_functions : (Ast.expression -> Ast.computation) Ast.VariableContext.t;
-}
-
-let initial_environment =
+let initial_environment : Ast.evaluation_environment =
   {
-    state = State.empty;
+    state = Ast.VariableContext.empty;
     variables = Ast.VariableContext.empty;
     builtin_functions = Ast.VariableContext.empty;
   }
 
 exception PatternMismatch
 
-type computation_redex = Match | ApplyFun | DoReturn
+type computation_redex = Match | ApplyFun | DoReturn | Delay | Box | Unbox
 
 type computation_reduction =
   | DoCtx of computation_reduction
   | ComputationRedex of computation_redex
 
-let rec eval_tuple env = function
+let rec eval_tuple (env : Ast.evaluation_environment) = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x ->
       eval_tuple env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
 
-let rec eval_variant env = function
+let rec eval_variant (env : Ast.evaluation_environment) = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
   | Ast.Var x ->
       eval_variant env (Ast.VariableContext.find_variable x env.variables)
   | expr ->
       Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
 
-let rec eval_const env = function
+let rec eval_const (env : Ast.evaluation_environment) = function
   | Ast.Const c -> c
   | Ast.Var x ->
       eval_const env (Ast.VariableContext.find_variable x env.variables)
@@ -200,28 +193,38 @@ let rec eval_function env = function
       Error.runtime "Function expected but got %t" (Ast.print_expression expr)
 
 let step_in_context step env redCtx ctx term =
-  let env', terms' = step env term in
-  ( env',
-    List.map (fun (red, term') -> (redCtx red, fun () -> ctx (term' ()))) terms'
-  )
+  let terms' = step env term in
+  List.map
+    (fun (env, red, term') -> (env, redCtx red, fun () -> ctx (term' ())))
+    terms'
 
 let rec step_computation env = function
-  | Ast.Return _ -> (env, [])
+  | Ast.Return _ -> []
   | Ast.Match (expr, cases) ->
       let rec find_case = function
-        | (pat, comp) :: cases -> (
+        | (env, pat, comp) :: cases -> (
             match match_pattern_with_expression env pat expr with
             | subst ->
-                [ (ComputationRedex Match, fun () -> substitute subst comp) ]
+                [
+                  (env, ComputationRedex Match, fun () -> substitute subst comp);
+                ]
             | exception PatternMismatch -> find_case cases)
         | [] -> []
       in
-      (env, find_case cases)
+      let cases' =
+        List.map
+          (fun (pat, comp) ->
+            let pat', vars = refresh_pattern pat in
+            let comp' = refresh_computation vars comp in
+            (env, pat', comp'))
+          cases
+      in
+      find_case cases'
   | Ast.Apply (expr1, expr2) ->
       let f = eval_function env expr1 in
-      (env, [ (ComputationRedex ApplyFun, fun () -> f expr2) ])
+      [ (env, ComputationRedex ApplyFun, fun () -> f expr2) ]
   | Ast.Do (comp1, comp2) -> (
-      let env', comps1' =
+      let comps1' =
         step_in_context step_computation env
           (fun red -> DoCtx red)
           (fun comp1' -> Ast.Do (comp1', comp2))
@@ -231,28 +234,36 @@ let rec step_computation env = function
       | Ast.Return expr ->
           let pat, comp2' = comp2 in
           let subst = match_pattern_with_expression env pat expr in
-          ( env',
-            (ComputationRedex DoReturn, fun () -> substitute subst comp2')
-            :: comps1' )
-      | _ -> (env', comps1'))
+          (env, ComputationRedex DoReturn, fun () -> substitute subst comp2')
+          :: comps1'
+      | _ -> comps1')
   | Ast.Delay (tau, comp) ->
-      let env' = { env with state = State.add_temp tau env.state } in
-      (env', [ (ComputationRedex DoReturn, fun () -> comp) ])
-  | Ast.Box (tau, expr, (pat, comp)) ->
-      let subst = match_pattern_with_expression env pat expr in
-      let state_with_boxed_vars =
-        Ast.VariableMap.fold
-          (fun var expr acc -> State.add_resource var (tau, expr) acc)
-          subst env.state
+      let env' =
+        { env with state = Ast.VariableContext.add_temp tau env.state }
       in
-      let env' = { env with state = state_with_boxed_vars } in
-      (env', [ (ComputationRedex DoReturn, fun () -> substitute subst comp) ])
-  | Ast.Unbox (_tau, expr, (pat, comp)) ->
-      let subst = match_pattern_with_expression env pat expr in
-      (env, [ (ComputationRedex DoReturn, fun () -> substitute subst comp) ])
+      [ (env', ComputationRedex Delay, fun () -> comp) ]
+  | Ast.Box (_tau, expr, (pat, comp)) -> (
+      match pat with
+      | Ast.PVar x ->
+          let state' = Ast.VariableContext.add_variable x expr env.state in
+          let env' = { env with state = state' } in
+          [ (env', ComputationRedex Box, fun () -> comp) ]
+      | _ ->
+          Error.runtime "Box expected a variable but got pattern %t"
+            (Ast.print_pattern pat))
+  | Ast.Unbox (tau, expr, (pat, comp)) -> (
+      match expr with
+      | Ast.Var x ->
+          let past_state = Ast.VariableContext.subtract_tau tau env.state in
+          let expr' = Ast.VariableContext.find_variable x past_state in
+          let subst = match_pattern_with_expression env pat expr' in
+          [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
+      | _ ->
+          Error.runtime "Unbox expected a variable but got expression %t"
+            (Ast.print_expression expr))
 
 type load_state = {
-  environment : environment;
+  environment : Ast.evaluation_environment;
   computations : Ast.computation list;
 }
 
@@ -291,32 +302,33 @@ let load_top_do load_state comp =
 
 type run_state = load_state
 type step_label = ComputationReduction of computation_reduction | Return
-type step = { label : step_label; next_state : unit -> run_state }
+
+type step = {
+  environment : Ast.evaluation_environment;
+  label : step_label;
+  next_state : unit -> run_state;
+}
 
 let run load_state = load_state
 
 let steps = function
-  | { computations = []; environment } -> (environment, [])
+  | { computations = []; _ } -> []
   | { computations = Ast.Return _ :: comps; environment } ->
-      ( environment,
-        [
-          {
-            label = Return;
-            next_state = (fun () -> { computations = comps; environment });
-          };
-        ] )
+      [
+        {
+          environment;
+          label = Return;
+          next_state = (fun () -> { computations = comps; environment });
+        };
+      ]
   | { computations = comp :: comps; environment } ->
-      let environment', redexes = step_computation environment comp in
-      ( environment',
-        List.map
-          (fun (red, thunk) ->
-            {
-              label = ComputationReduction red;
-              next_state =
-                (fun () ->
-                  {
-                    computations = thunk () :: comps;
-                    environment = environment';
-                  });
-            })
-          redexes )
+      List.map
+        (fun (env, red, comp') ->
+          {
+            environment = env;
+            label = ComputationReduction red;
+            next_state =
+              (fun () ->
+                { computations = comp' () :: comps; environment = env });
+          })
+        (step_computation environment comp)

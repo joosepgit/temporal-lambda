@@ -98,7 +98,7 @@ struct
     in
     subtract lst (eval_tau tau)
 
-  let print_contents print_var_and_ty lst =
+  let print_vars_and_tys print_var_and_ty lst =
     let rec print_list lst ppf =
       match lst with
       | [] -> ()
@@ -125,6 +125,37 @@ struct
     in
     let ppf = Format.std_formatter in
     Print.print ppf "VariableContext: [\n";
+    print_list (List.rev lst) ppf;
+    Print.print ppf "]\n"
+
+  let print_vars_and_exprs print_var_and_expr lst ppf =
+    let rec print_list lst ppf =
+      match lst with
+      | [] -> ()
+      | VarMap map :: rest ->
+          Print.print ppf "{";
+          let elements = VariableMap.bindings map in
+          let rec print_elements = function
+            | [] -> ()
+            | entry :: [] -> print_var_and_expr entry ppf
+            | entry :: tl ->
+                print_var_and_expr entry ppf;
+                Print.print ppf ", ";
+                print_elements tl
+          in
+          print_elements elements;
+          Print.print ppf "}, ";
+          print_list rest ppf
+      | Tau n :: [] ->
+          let tau_pp = TauPrintParam.create () in
+          print_tau tau_pp n ppf
+      | Tau n :: rest ->
+          let tau_pp = TauPrintParam.create () in
+          print_tau tau_pp n ppf;
+          Print.print ppf ", ";
+          print_list rest ppf
+    in
+    Print.print ppf "State: [";
     print_list (List.rev lst) ppf;
     Print.print ppf "]\n"
 end

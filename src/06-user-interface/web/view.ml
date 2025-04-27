@@ -233,7 +233,7 @@ let view_steps (run_model : Model.run_model) steps =
    :: List.mapi view_step steps)
 
 let run_view (run_model : Model.run_model) =
-  let _env, steps = Model.Backend.steps run_model.run_state in
+  let steps = Model.Backend.steps run_model.run_state in
   let selected_step =
     Option.map (List.nth steps) run_model.selected_step_index
   in
@@ -251,7 +251,7 @@ let view_navbar =
       [
         elt "a"
           ~a:[ class_ "navbar-item" ]
-          [ elt "p" ~a:[ class_ "title" ] [ text "Temporal lamda" ] ];
+          [ elt "p" ~a:[ class_ "title" ] [ text "Temporal lambda" ] ];
       ]
   in
 
