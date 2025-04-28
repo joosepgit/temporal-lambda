@@ -209,9 +209,12 @@ let rec infer_expression state = function
   | Ast.RecLambda (f, abs) ->
       let f_ty = fresh_ty () in
       let state' = extend_variables state [ (f, f_ty) ] in
-      let ty, ty', eqs = infer_abstraction state' abs in
-      let out_ty = Ast.TyArrow (ty, ty') in
-      (out_ty, Constraint.TypeConstraint (f_ty, out_ty) :: eqs)
+      let ty, CompTy (ty', tau), eqs = infer_abstraction state' abs in
+      let out_ty = Ast.TyArrow (ty, CompTy (ty', tau)) in
+      ( out_ty,
+        Constraint.TypeConstraint (f_ty, out_ty)
+        :: Constraint.TauConstraint (tau, TauConst 0)
+        :: eqs )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
@@ -385,6 +388,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let tau1' = simplify_tau tau1 in
       let tau2' = simplify_tau tau2 in
       match (tau1', tau2') with
+      | _ when tau1' = tau2' ->
+          unify_with_accum state prev_unsolved_size unsolved eqs
       | Context.TauParam p1, Context.TauParam p2 when p1 = p2 ->
           unify_with_accum state prev_unsolved_size unsolved eqs
       | Context.TauParam tp, tau when not (occurs_tau tp tau) ->
@@ -409,8 +414,12 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
             (Constraint.TauConstraint (t1, Context.TauConst 0)
             :: Constraint.TauConstraint (t2, Context.TauConst 0)
             :: eqs)
-      | _ when tau1' = tau2' ->
-          unify_with_accum state prev_unsolved_size unsolved eqs
+      | Context.TauAdd (t1, _t2), t when t1 = t ->
+          unify_with_accum state prev_unsolved_size unsolved
+            (Constraint.TauConstraint (t1, Context.TauConst 0) :: eqs)
+      | Context.TauAdd (_t1, t2), t when t2 = t ->
+          unify_with_accum state prev_unsolved_size unsolved
+            (Constraint.TauConstraint (t2, Context.TauConst 0) :: eqs)
       | u1, u2 ->
           unify_with_accum state prev_unsolved_size
             (Constraint.TauConstraint (u1, u2) :: unsolved)

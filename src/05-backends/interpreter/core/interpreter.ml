@@ -242,10 +242,12 @@ let rec step_computation env = function
         { env with state = Ast.VariableContext.add_temp tau env.state }
       in
       [ (env', ComputationRedex Delay, fun () -> comp) ]
-  | Ast.Box (_tau, expr, (pat, comp)) -> (
+  | Ast.Box (tau, expr, (pat, comp)) -> (
       match pat with
       | Ast.PVar x ->
-          let state' = Ast.VariableContext.add_variable x expr env.state in
+          let state' =
+            Ast.VariableContext.add_variable x (tau, expr) env.state
+          in
           let env' = { env with state = state' } in
           [ (env', ComputationRedex Box, fun () -> comp) ]
       | _ ->
@@ -255,7 +257,7 @@ let rec step_computation env = function
       match expr with
       | Ast.Var x ->
           let past_state = Ast.VariableContext.subtract_tau tau env.state in
-          let expr' = Ast.VariableContext.find_variable x past_state in
+          let _tau', expr' = Ast.VariableContext.find_variable x past_state in
           let subst = match_pattern_with_expression env pat expr' in
           [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
       | _ ->

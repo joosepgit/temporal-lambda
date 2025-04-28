@@ -41,8 +41,6 @@ let reverse lst =
   in
   reverse_acc [] lst
 
-(* TEMPORARILY IGNORE
-
 let rec map f = function
   | [] -> []
   | x :: xs ->
@@ -137,5 +135,3 @@ let fst (x, _) = x
 let snd (_, y) = y
   
 let return x = x
-
-*)

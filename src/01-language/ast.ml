@@ -204,7 +204,7 @@ type command =
   | TopDo of computation
 
 type evaluation_environment = {
-  state : expression VariableContext.t;
+  state : (Context.tau * expression) VariableContext.t;
   variables : expression VariableContext.t;
   builtin_functions : (expression -> computation) VariableContext.t;
 }
@@ -304,10 +304,11 @@ let print_variable_context ctx =
   VariableContext.print_vars_and_tys print_var_and_ty ctx
 
 let print_interpreter_state ctx =
-  let print_var_and_expr (variable, expr) ppf =
-    Variable.print variable ppf;
-    Format.fprintf ppf " -> ";
-    print_expression expr ppf
+  let print_var_and_expr (variable, (tau, expr)) ppf =
+    let tau_print_param = Context.TauPrintParam.create () in
+    Format.fprintf ppf "%t -> %t # %t" (Variable.print variable)
+      (print_expression expr)
+      (Context.print_tau tau_print_param tau)
   in
   let ppf = Format.str_formatter in
   VariableContext.print_vars_and_exprs print_var_and_expr ctx ppf;
