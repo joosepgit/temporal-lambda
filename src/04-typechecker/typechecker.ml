@@ -368,6 +368,34 @@ and simplify_ty ty =
 let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
 
+let rec build_tau_param_list simplified_tau =
+  match simplified_tau with
+  | Context.TauParam t -> [ t ]
+  | Context.TauConst _ -> []
+  | Context.TauAdd (tau1, tau2) ->
+      build_tau_param_list tau1 @ build_tau_param_list tau2
+
+let build_sorted_tau_param_list tau =
+  build_tau_param_list tau |> List.sort compare
+
+let rec cancel_common_elements left right =
+  match (left, right) with
+  | lhd :: ltl, rhd :: rtl ->
+      if lhd = rhd then cancel_common_elements ltl rtl
+      else if lhd < rhd then
+        let lrest, rrest = cancel_common_elements ltl right in
+        (lhd :: lrest, rrest)
+      else
+        let lrest, rrest = cancel_common_elements left rtl in
+        (lrest, rhd :: rrest)
+  | [], _ -> ([], right)
+  | _, [] -> (left, [])
+
+let rec build_tau_from_param_list = function
+  | [] -> Context.TauConst 0
+  | [ x ] -> Context.TauParam x
+  | x :: xs -> Context.TauAdd (Context.TauParam x, build_tau_from_param_list xs)
+
 let rec unify_with_accum state prev_unsolved_size unsolved = function
   | [] ->
       let current_unsolved_size = List.length unsolved in
@@ -414,12 +442,14 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
             (Constraint.TauConstraint (t1, Context.TauConst 0)
             :: Constraint.TauConstraint (t2, Context.TauConst 0)
             :: eqs)
-      | Context.TauAdd (t1, _t2), t when t1 = t ->
+      | t, Context.TauAdd (t1, t2) | Context.TauAdd (t1, t2), t ->
+          let left = build_sorted_tau_param_list t in
+          let right = build_sorted_tau_param_list (Context.TauAdd (t1, t2)) in
+          let left', right' = cancel_common_elements left right in
+          let left_tau = build_tau_from_param_list left' in
+          let right_tau = build_tau_from_param_list right' in
           unify_with_accum state prev_unsolved_size unsolved
-            (Constraint.TauConstraint (t1, Context.TauConst 0) :: eqs)
-      | Context.TauAdd (_t1, t2), t when t2 = t ->
-          unify_with_accum state prev_unsolved_size unsolved
-            (Constraint.TauConstraint (t2, Context.TauConst 0) :: eqs)
+            (Constraint.TauConstraint (left_tau, right_tau) :: eqs)
       | u1, u2 ->
           unify_with_accum state prev_unsolved_size
             (Constraint.TauConstraint (u1, u2) :: unsolved)
