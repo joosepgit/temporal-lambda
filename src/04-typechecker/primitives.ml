@@ -1,5 +1,5 @@
-open Utils
 module Ast = Language.Ast
+module Context = Language.Context
 module Const = Language.Const
 module Primitives = Language.Primitives
 

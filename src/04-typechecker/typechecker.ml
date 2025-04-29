@@ -1,5 +1,6 @@
 open Utils
 module Ast = Language.Ast
+module Context = Language.Context
 module Const = Language.Const
 
 type state = {

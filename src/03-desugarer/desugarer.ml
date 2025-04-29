@@ -3,6 +3,7 @@
 open Utils
 module Sugared = Parser.SugaredAst
 module Untyped = Language.Ast
+module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
 

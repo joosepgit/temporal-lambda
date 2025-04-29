@@ -1,3 +1,4 @@
+open Utils
 module TauParamModule = Symbol.Make ()
 module TauParamMap = Map.Make (TauParamModule)
 module TauParamSet = Set.Make (TauParamModule)
