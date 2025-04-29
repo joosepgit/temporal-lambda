@@ -368,23 +368,18 @@ and simplify_ty ty =
 let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
 
-let rec compare_tau a b =
+let compare_tau a b =
   match (a, b) with
-  | Context.TauParam p1, Context.TauParam p2 -> compare p1 p2
-  | Context.TauConst c1, Context.TauConst c2 -> compare c1 c2
-  | Context.TauAdd (l1, r1), Context.TauAdd (l2, r2) ->
-      let cmp_l = compare_tau l1 l2 in
-      if cmp_l <> 0 then cmp_l else compare_tau r1 r2
-  | Context.TauParam _, _ -> -1
-  | _, Context.TauParam _ -> 1
-  | Context.TauConst _, _ -> -1
-  | _, Context.TauConst _ -> 1
+  | Either.Left p1, Either.Left p2 -> compare p1 p2
+  | Either.Right c1, Either.Right c2 -> compare c1 c2
+  | Either.Left _, _ -> -1
+  | _, Either.Left _ -> 1
 
 let build_tau_param_list tau =
   let rec aux acc tau =
     match tau with
-    | Context.TauParam t -> Context.TauParam t :: acc
-    | Context.TauConst c -> Context.TauConst c :: acc
+    | Context.TauParam t -> Either.Left t :: acc
+    | Context.TauConst c -> Either.Right c :: acc
     | Context.TauAdd (tau1, tau2) ->
         let acc' = aux acc tau2 in
         aux acc' tau1
@@ -401,22 +396,23 @@ let cancel_common_elements left right =
         if lhd = rhd then aux ltl rtl acc_left acc_right
         else if lhd < rhd then aux ltl r (lhd :: acc_left) acc_right
         else aux l rtl acc_left (rhd :: acc_right)
-    | [], [] -> (List.rev acc_left, List.rev acc_right)
-    | [], r -> (List.rev acc_left, List.rev_append acc_right r)
-    | l, [] -> (List.rev_append acc_left l, List.rev acc_right)
+    | [], [] -> (acc_left, acc_right)
+    | [], r -> (acc_left, acc_right @ r)
+    | l, [] -> (acc_left @ l, acc_right)
   in
   aux left right [] []
 
 let build_tau_from_param_list params =
-  let rec aux acc =
-    match acc with
-    | [] -> Context.TauConst 0
-    | [ x ] -> x
-    | x :: y :: xs ->
-        let new_tau = Context.TauAdd (x, y) in
-        aux (new_tau :: xs)
+  let to_tau = function
+    | Either.Left x -> Context.TauParam x
+    | Either.Right x -> Context.TauConst x
   in
-  aux params
+  match params with
+  | [] -> Context.TauConst 0
+  | hd :: tl ->
+      List.fold_left
+        (fun acc e -> Context.TauAdd (acc, to_tau e))
+        (to_tau hd) tl
 
 let rec unify_with_accum state prev_unsolved_size unsolved = function
   | [] ->
