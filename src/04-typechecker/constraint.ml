@@ -1,7 +1,9 @@
-type ('a, 'b, 'c) t =
-  | TypeConstraint of ('a * 'a)
-  | TauConstraint of ('b * 'b)
-  | TauGeq of ('c * 'c)
+open Language
+
+type t =
+  | TypeConstraint of (Ast.ty * Ast.ty)
+  | TauConstraint of (Context.tau * Context.tau)
+  | TauGeq of (Context.tau * Context.tau)
 
 let type_constraint v = TypeConstraint v
 let tau_constraint v = TauConstraint v
