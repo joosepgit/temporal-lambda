@@ -180,6 +180,10 @@ let rec eval_function env = function
       fun arg ->
         let subst = match_pattern_with_expression env pat arg in
         substitute subst comp
+  | Ast.PureLambda (pat, comp) ->
+      fun arg ->
+        let subst = match_pattern_with_expression env pat arg in
+        substitute subst comp
   | Ast.RecLambda (f, (pat, comp)) as expr ->
       fun arg ->
         let subst =
