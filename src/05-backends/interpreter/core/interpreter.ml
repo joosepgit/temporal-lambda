@@ -105,6 +105,7 @@ let rec refresh_expression vars = function
   | Ast.Variant (label, expr) ->
       Ast.Variant (label, Option.map (refresh_expression vars) expr)
   | Ast.Lambda abs -> Ast.Lambda (refresh_abstraction vars abs)
+  | Ast.PureLambda abs -> Ast.PureLambda (refresh_abstraction vars abs)
   | Ast.RecLambda (x, abs) ->
       let x' = Ast.Variable.refresh x in
       Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
@@ -143,6 +144,7 @@ let rec substitute_expression subst = function
   | Ast.Variant (label, expr) ->
       Variant (label, Option.map (substitute_expression subst) expr)
   | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
+  | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
   | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
 
 and substitute_computation subst = function

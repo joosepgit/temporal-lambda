@@ -207,6 +207,10 @@ let rec infer_expression state = function
   | Ast.Lambda abs ->
       let ty, ty', eqs = infer_abstraction state abs in
       (Ast.TyArrow (ty, ty'), eqs)
+  | Ast.PureLambda abs ->
+      let ty, CompTy (ty', tau), eqs = infer_abstraction state abs in
+      ( Ast.TyArrow (ty, CompTy (ty', tau)),
+        Constraint.TauConstraint (tau, TauConst 0) :: eqs )
   | Ast.RecLambda (f, abs) ->
       let f_ty = fresh_ty () in
       let state' = extend_variables state [ (f, f_ty) ] in

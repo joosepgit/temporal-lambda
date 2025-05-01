@@ -51,6 +51,7 @@ and plain_term =
   | Tuple of term list  (** [(t1, t2, ..., tn)] *)
   | Variant of label * term option  (** [Label] or [Label t] *)
   | Lambda of abstraction  (** [fun p1 p2 ... pn -> t] *)
+  | PureLambda of abstraction  (** [fun p1 p2 ... pn -> t] *)
   | Function of abstraction list  (** [function p1 -> t1 | ... | pn -> tn] *)
   | Let of pattern * term * term  (** [let p = t1 in t2] *)
   | LetRec of variable * term * term  (** [let rec f = t1 in t2] *)

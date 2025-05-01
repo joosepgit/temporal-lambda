@@ -60,6 +60,7 @@ let rec comparable_expression = function
   | Tuple es -> List.for_all comparable_expression es
   | Variant (_, e) -> Option.fold ~none:true ~some:comparable_expression e
   | Lambda _ -> false
+  | PureLambda _ -> false
   | RecLambda _ -> false
 
 let comparison f =

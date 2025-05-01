@@ -183,6 +183,7 @@ type expression =
   | Tuple of expression list
   | Variant of label * expression option
   | Lambda of abstraction
+  | PureLambda of abstraction
   | RecLambda of variable * abstraction
 
 and computation =
@@ -242,6 +243,7 @@ let rec print_expression ?max_level e ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
         (print_expression ~max_level:0 e)
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
+  | PureLambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
   | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
 
 and print_computation ?max_level c ppf =

@@ -124,6 +124,9 @@ and desugar_plain_expression ~loc state = function
   | Sugared.Lambda a ->
       let a' = desugar_abstraction state a in
       ([], Untyped.Lambda a')
+  | Sugared.PureLambda a ->
+      let a' = desugar_abstraction state a in
+      ([], Untyped.PureLambda a')
   | Sugared.Function cases ->
       let x = Untyped.Variable.fresh "arg" in
       let cases' = List.map (desugar_abstraction state) cases in
@@ -206,7 +209,8 @@ and desugar_plain_computation ~loc state =
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
-    | Sugared.Variant _ | Sugared.Lambda _ | Sugared.Function _ ) as term ->
+    | Sugared.Variant _ | Sugared.Lambda _ | Sugared.PureLambda _
+    | Sugared.Function _ ) as term ->
       let binds, expr = desugar_expression state { it = term; at = loc } in
       (binds, Untyped.Return expr)
 
@@ -236,7 +240,7 @@ and desugar_let_rec_def state (f, { it = exp; at = loc }) =
   let state' = add_fresh_variables state (StringMap.singleton f f') in
   let abs' =
     match exp with
-    | Sugared.Lambda a -> desugar_abstraction state' a
+    | Sugared.PureLambda a -> desugar_abstraction state' a
     | Sugared.Function cs ->
         let x = Untyped.Variable.fresh "rf" in
         let cs = List.map (desugar_abstraction state') cs in
