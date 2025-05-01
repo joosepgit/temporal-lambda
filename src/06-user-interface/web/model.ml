@@ -1,4 +1,4 @@
-open Utils
+module Error = Utils.Error
 module Ast = Language.Ast
 module Backend = WebInterpreter
 module Loader = Loader.Loader (Backend)

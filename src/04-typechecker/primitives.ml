@@ -4,7 +4,7 @@ module Const = Language.Const
 module Primitives = Language.Primitives
 
 let poly_type ty =
-  let a = Context.TyParamModule.fresh "poly" in
+  let a = Ast.TyParamModule.fresh "poly" in
   ([ a ], [], ty (Ast.TyParam a))
 
 let unary_integer_op_ty =
@@ -12,34 +12,34 @@ let unary_integer_op_ty =
     [],
     Ast.TyArrow
       ( Ast.TyConst Const.IntegerTy,
-        Ast.CompTy (Ast.TyConst Const.IntegerTy, Context.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.IntegerTy, Ast.TauConst 0) ) )
 
 let binary_integer_op_ty =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.IntegerTy; Ast.TyConst Const.IntegerTy ],
-        Ast.CompTy (Ast.TyConst Const.IntegerTy, Context.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.IntegerTy, Ast.TauConst 0) ) )
 
 let unary_float_op_ty =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyConst Const.FloatTy,
-        Ast.CompTy (Ast.TyConst Const.FloatTy, Context.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.FloatTy, Ast.TauConst 0) ) )
 
 let binary_float_op_ty =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.FloatTy; Ast.TyConst Const.FloatTy ],
-        Ast.CompTy (Ast.TyConst Const.FloatTy, Context.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.FloatTy, Ast.TauConst 0) ) )
 
 let comparison_ty =
   poly_type (fun a ->
       Ast.TyArrow
         ( Ast.TyTuple [ a; a ],
-          Ast.CompTy (Ast.TyConst Const.BooleanTy, Context.TauConst 0) ))
+          Ast.CompTy (Ast.TyConst Const.BooleanTy, Ast.TauConst 0) ))
 
 let primitive_type_scheme = function
   | Primitives.CompareEq -> comparison_ty
@@ -63,4 +63,4 @@ let primitive_type_scheme = function
   | Primitives.ToString ->
       poly_type (fun a ->
           Ast.TyArrow
-            (a, Ast.CompTy (Ast.TyConst Const.StringTy, Context.TauConst 0)))
+            (a, Ast.CompTy (Ast.TyConst Const.StringTy, Ast.TauConst 0)))

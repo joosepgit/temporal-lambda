@@ -1,17 +1,28 @@
 module Ast = Language.Ast
 module Context = Language.Context
+module Primitives = Language.Primitives
+
+module ContextHolderModule =
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
 
 module type S = sig
   type load_state
 
+  type evaluation_environment = {
+    state : (Ast.tau * Ast.expression) ContextHolderModule.t;
+    variables : Ast.expression ContextHolderModule.t;
+    builtin_functions :
+      (Ast.expression -> Ast.computation) ContextHolderModule.t;
+  }
+
   val initial_load_state : load_state
 
   val load_primitive :
-    load_state -> Ast.variable -> Language.Primitives.primitive -> load_state
+    load_state -> Ast.variable -> Primitives.primitive -> load_state
 
   val load_ty_def :
     load_state ->
-    (Context.ty_param list * Ast.ty_name * Ast.ty_def) list ->
+    (Ast.ty_param list * Ast.ty_name * Ast.ty_def) list ->
     load_state
 
   val load_top_let : load_state -> Ast.variable -> Ast.expression -> load_state
@@ -21,7 +32,7 @@ module type S = sig
   type step_label
 
   type step = {
-    environment : Ast.evaluation_environment;
+    environment : evaluation_environment;
     label : step_label;
     next_state : unit -> run_state;
   }

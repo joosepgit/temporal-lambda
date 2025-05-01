@@ -1,4 +1,4 @@
-open Utils
+module Location = Utils.Location
 
 type ty_name = string
 

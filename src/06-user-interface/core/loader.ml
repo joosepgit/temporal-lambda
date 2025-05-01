@@ -1,4 +1,6 @@
-open Utils
+module Location = Utils.Location
+module Error = Utils.Error
+module List = Utils.List
 module Ast = Language.Ast
 
 module Loader (Backend : Backend.S) = struct

@@ -1,5 +1,6 @@
 include Interpreter
 open Vdom
+module PrettyPrint = Language.PrettyPrint
 
 let view_computation_redex = function
   | Interpreter.Match -> "match"
@@ -28,7 +29,9 @@ let view_run_state (run_state : run_state) step_label =
         | None -> None
       in
 
-      let state_string = Ast.print_interpreter_state environment.state in
+      let state_string =
+        PrettyPrint.string_of_interpreter_state environment.state
+      in
       let computation_tree =
         RedexSelectorTM.view_computation_with_redexes reduction comp
       in
