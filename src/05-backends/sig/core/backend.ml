@@ -1,5 +1,5 @@
 module Ast = Language.Ast
-module Context = Utils.Context
+module Context = Language.Context
 
 module type S = sig
   type load_state

@@ -204,6 +204,14 @@ lambdas1(SEP):
   | p = simple_pattern t = lambdas0(SEP)
     { {it= Lambda (p, t); at= Location.of_lexeme $startpos} }
 
+pure_lambdas(SEP):
+  | SEP t = term
+    { t }
+  | p = simple_pattern t = pure_lambdas(SEP)
+    { {it= PureLambda (p, t); at= Location.of_lexeme $startpos} }
+  | COLON ty = ty SEP t = term
+    { {it= Annotated (t, ty); at= Location.of_lexeme $startpos} }
+
 let_def:
   | p = pattern EQUAL t = term
     { (p, t) }
@@ -213,7 +221,7 @@ let_def:
     { ({it= PVar x.it; at= x.at}, t) }
 
 let_rec_def:
-  | f = ident t = lambdas0(EQUAL)
+  | f = ident t = pure_lambdas(EQUAL)
     { (f, t) }
 
 pattern: mark_position(plain_pattern) { $1 }

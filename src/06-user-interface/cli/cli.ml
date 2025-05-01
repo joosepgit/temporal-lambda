@@ -3,10 +3,10 @@ module Ast = Language.Ast
 module Backend = CliInterpreter
 module Loader = Loader.Loader (Backend)
 
-type config = { filenames : string list; use_stdlib : bool }
+type config = { filenames : string list; use_stdlib : bool; show_state : bool }
 
 let parse_args_to_config () =
-  let filenames = ref [] and use_stdlib = ref true in
+  let filenames = ref [] and use_stdlib = ref true and show_state = ref false in
   let usage = "Run Millet as '" ^ Sys.argv.(0) ^ " [filename.mlt] ...'"
   and anonymous filename = filenames := filename :: !filenames
   and options =
@@ -15,12 +15,19 @@ let parse_args_to_config () =
         ( "--no-stdlib",
           Arg.Clear use_stdlib,
           " Do not load the standard library" );
+        ( "--show-state",
+          Arg.Set show_state,
+          " Show internal state during execution" );
       ]
   in
   Arg.parse options anonymous usage;
-  { filenames = List.rev !filenames; use_stdlib = !use_stdlib }
+  {
+    filenames = List.rev !filenames;
+    use_stdlib = !use_stdlib;
+    show_state = !show_state;
+  }
 
-let rec run (state : Backend.run_state) =
+let rec run (state : Backend.run_state) show_state =
   Backend.view_run_state state;
   match Backend.steps state with
   | [] -> ()
@@ -28,9 +35,9 @@ let rec run (state : Backend.run_state) =
       let i = Random.int (List.length steps) in
       let step = List.nth steps i in
       let state' = step.next_state () in
-      if Backend.steps state' = [] then
+      if show_state && Backend.steps state' = [] then
         print_string (Ast.print_interpreter_state step.environment.state);
-      run state'
+      run state' show_state
 
 let main () =
   let config = parse_args_to_config () in
@@ -44,7 +51,7 @@ let main () =
     let state' = List.fold_left Loader.load_file state config.filenames in
     let run_state = Backend.run state'.backend in
     Ast.print_variable_context state'.typechecker.variables;
-    run run_state
+    run run_state config.show_state
   with Error.Error error ->
     Error.print error;
     exit 1

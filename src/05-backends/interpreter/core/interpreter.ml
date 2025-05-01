@@ -105,6 +105,7 @@ let rec refresh_expression vars = function
   | Ast.Variant (label, expr) ->
       Ast.Variant (label, Option.map (refresh_expression vars) expr)
   | Ast.Lambda abs -> Ast.Lambda (refresh_abstraction vars abs)
+  | Ast.PureLambda abs -> Ast.PureLambda (refresh_abstraction vars abs)
   | Ast.RecLambda (x, abs) ->
       let x' = Ast.Variable.refresh x in
       Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
@@ -143,6 +144,7 @@ let rec substitute_expression subst = function
   | Ast.Variant (label, expr) ->
       Variant (label, Option.map (substitute_expression subst) expr)
   | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
+  | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
   | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
 
 and substitute_computation subst = function
@@ -175,6 +177,10 @@ let substitute subst comp =
 
 let rec eval_function env = function
   | Ast.Lambda (pat, comp) ->
+      fun arg ->
+        let subst = match_pattern_with_expression env pat arg in
+        substitute subst comp
+  | Ast.PureLambda (pat, comp) ->
       fun arg ->
         let subst = match_pattern_with_expression env pat arg in
         substitute subst comp
@@ -242,10 +248,12 @@ let rec step_computation env = function
         { env with state = Ast.VariableContext.add_temp tau env.state }
       in
       [ (env', ComputationRedex Delay, fun () -> comp) ]
-  | Ast.Box (_tau, expr, (pat, comp)) -> (
+  | Ast.Box (tau, expr, (pat, comp)) -> (
       match pat with
       | Ast.PVar x ->
-          let state' = Ast.VariableContext.add_variable x expr env.state in
+          let state' =
+            Ast.VariableContext.add_variable x (tau, expr) env.state
+          in
           let env' = { env with state = state' } in
           [ (env', ComputationRedex Box, fun () -> comp) ]
       | _ ->
@@ -255,7 +263,7 @@ let rec step_computation env = function
       match expr with
       | Ast.Var x ->
           let past_state = Ast.VariableContext.subtract_tau tau env.state in
-          let expr' = Ast.VariableContext.find_variable x past_state in
+          let _tau', expr' = Ast.VariableContext.find_variable x past_state in
           let subst = match_pattern_with_expression env pat expr' in
           [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
       | _ ->

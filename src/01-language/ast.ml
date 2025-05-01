@@ -183,6 +183,7 @@ type expression =
   | Tuple of expression list
   | Variant of label * expression option
   | Lambda of abstraction
+  | PureLambda of abstraction
   | RecLambda of variable * abstraction
 
 and computation =
@@ -204,7 +205,7 @@ type command =
   | TopDo of computation
 
 type evaluation_environment = {
-  state : expression VariableContext.t;
+  state : (Context.tau * expression) VariableContext.t;
   variables : expression VariableContext.t;
   builtin_functions : (expression -> computation) VariableContext.t;
 }
@@ -242,6 +243,7 @@ let rec print_expression ?max_level e ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl)
         (print_expression ~max_level:0 e)
   | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
+  | PureLambda a -> print ~at_level:2 "fun %t" (print_abstraction a)
   | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
 
 and print_computation ?max_level c ppf =
@@ -304,10 +306,11 @@ let print_variable_context ctx =
   VariableContext.print_vars_and_tys print_var_and_ty ctx
 
 let print_interpreter_state ctx =
-  let print_var_and_expr (variable, expr) ppf =
-    Variable.print variable ppf;
-    Format.fprintf ppf " -> ";
-    print_expression expr ppf
+  let print_var_and_expr (variable, (tau, expr)) ppf =
+    let tau_print_param = Context.TauPrintParam.create () in
+    Format.fprintf ppf "%t -> %t # %t" (Variable.print variable)
+      (print_expression expr)
+      (Context.print_tau tau_print_param tau)
   in
   let ppf = Format.str_formatter in
   VariableContext.print_vars_and_exprs print_var_and_expr ctx ppf;

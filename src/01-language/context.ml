@@ -1,3 +1,4 @@
+open Utils
 module TauParamModule = Symbol.Make ()
 module TauParamMap = Map.Make (TauParamModule)
 module TauParamSet = Set.Make (TauParamModule)
@@ -31,7 +32,9 @@ struct
   type 'a t = 'a map_or_tau list
 
   let empty : 'a t = []
-  let add_temp (n : tau) (lst : 'a t) : 'a t = Tau n :: lst
+
+  let add_temp (n : tau) (lst : 'a t) : 'a t =
+    if n = TauConst 0 then lst else Tau n :: lst
 
   let add_variable (key : Variable.t) (value : 'a) (lst : 'a t) : 'a t =
     match lst with

@@ -1,5 +1,6 @@
 open Utils
 module Ast = Language.Ast
+module Context = Language.Context
 module Const = Language.Const
 
 type state = {
@@ -206,12 +207,19 @@ let rec infer_expression state = function
   | Ast.Lambda abs ->
       let ty, ty', eqs = infer_abstraction state abs in
       (Ast.TyArrow (ty, ty'), eqs)
+  | Ast.PureLambda abs ->
+      let ty, CompTy (ty', tau), eqs = infer_abstraction state abs in
+      ( Ast.TyArrow (ty, CompTy (ty', tau)),
+        Constraint.TauConstraint (tau, TauConst 0) :: eqs )
   | Ast.RecLambda (f, abs) ->
       let f_ty = fresh_ty () in
       let state' = extend_variables state [ (f, f_ty) ] in
-      let ty, ty', eqs = infer_abstraction state' abs in
-      let out_ty = Ast.TyArrow (ty, ty') in
-      (out_ty, Constraint.TypeConstraint (f_ty, out_ty) :: eqs)
+      let ty, CompTy (ty', tau), eqs = infer_abstraction state' abs in
+      let out_ty = Ast.TyArrow (ty, CompTy (ty', tau)) in
+      ( out_ty,
+        Constraint.TypeConstraint (f_ty, out_ty)
+        :: Constraint.TauConstraint (tau, TauConst 0)
+        :: eqs )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
@@ -365,6 +373,52 @@ and simplify_ty ty =
 let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
 
+let compare_tau a b =
+  match (a, b) with
+  | Either.Left p1, Either.Left p2 -> compare p1 p2
+  | Either.Right c1, Either.Right c2 -> compare c1 c2
+  | Either.Left _, _ -> -1
+  | _, Either.Left _ -> 1
+
+let build_tau_param_list tau =
+  let rec aux acc tau =
+    match tau with
+    | Context.TauParam t -> Either.Left t :: acc
+    | Context.TauConst c -> Either.Right c :: acc
+    | Context.TauAdd (tau1, tau2) ->
+        let acc' = aux acc tau2 in
+        aux acc' tau1
+  in
+  aux [] tau
+
+let build_sorted_tau_param_list tau =
+  build_tau_param_list tau |> List.sort compare_tau
+
+let cancel_common_elements left right =
+  let rec aux l r acc_left acc_right =
+    match (l, r) with
+    | lhd :: ltl, rhd :: rtl ->
+        if lhd = rhd then aux ltl rtl acc_left acc_right
+        else if lhd < rhd then aux ltl r (lhd :: acc_left) acc_right
+        else aux l rtl acc_left (rhd :: acc_right)
+    | [], [] -> (acc_left, acc_right)
+    | [], r -> (acc_left, acc_right @ r)
+    | l, [] -> (acc_left @ l, acc_right)
+  in
+  aux left right [] []
+
+let build_tau_from_param_list params =
+  let to_tau = function
+    | Either.Left x -> Context.TauParam x
+    | Either.Right x -> Context.TauConst x
+  in
+  match params with
+  | [] -> Context.TauConst 0
+  | hd :: tl ->
+      List.fold_left
+        (fun acc e -> Context.TauAdd (acc, to_tau e))
+        (to_tau hd) tl
+
 let rec unify_with_accum state prev_unsolved_size unsolved = function
   | [] ->
       let current_unsolved_size = List.length unsolved in
@@ -385,6 +439,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let tau1' = simplify_tau tau1 in
       let tau2' = simplify_tau tau2 in
       match (tau1', tau2') with
+      | _ when tau1' = tau2' ->
+          unify_with_accum state prev_unsolved_size unsolved eqs
       | Context.TauParam p1, Context.TauParam p2 when p1 = p2 ->
           unify_with_accum state prev_unsolved_size unsolved eqs
       | Context.TauParam tp, tau when not (occurs_tau tp tau) ->
@@ -409,8 +465,19 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
             (Constraint.TauConstraint (t1, Context.TauConst 0)
             :: Constraint.TauConstraint (t2, Context.TauConst 0)
             :: eqs)
-      | _ when tau1' = tau2' ->
-          unify_with_accum state prev_unsolved_size unsolved eqs
+      | t, Context.TauAdd (t1, t2) | Context.TauAdd (t1, t2), t ->
+          let left = build_sorted_tau_param_list t in
+          let right = build_sorted_tau_param_list (Context.TauAdd (t1, t2)) in
+          let left', right' = cancel_common_elements left right in
+          let left_tau = build_tau_from_param_list left' in
+          let right_tau = build_tau_from_param_list right' in
+          if left_tau = t && right_tau = Context.TauAdd (t1, t2) then
+            unify_with_accum state prev_unsolved_size
+              (Constraint.TauConstraint (left_tau, right_tau) :: unsolved)
+              eqs
+          else
+            unify_with_accum state prev_unsolved_size unsolved
+              (Constraint.TauConstraint (left_tau, right_tau) :: eqs)
       | u1, u2 ->
           unify_with_accum state prev_unsolved_size
             (Constraint.TauConstraint (u1, u2) :: unsolved)
