@@ -1,6 +1,7 @@
 (** Desugaring of syntax into the core language. *)
 
-open Utils
+module Error = Utils.Error
+module List = Utils.List
 module Sugared = Parser.SugaredAst
 module Untyped = Language.Ast
 module Context = Language.Context
@@ -16,7 +17,7 @@ let add_unique ~loc kind str symb string_map =
 
 type state = {
   ty_names : Untyped.ty_name StringMap.t;
-  ty_params : Context.ty_param StringMap.t;
+  ty_params : Untyped.ty_param StringMap.t;
   variables : Untyped.variable StringMap.t;
   labels : Untyped.label StringMap.t;
 }
@@ -197,15 +198,15 @@ and desugar_plain_computation ~loc state =
       ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
   | Sugared.Delay (tau, c) ->
       let c' = desugar_computation state c in
-      ([], Untyped.Delay (Context.TauConst tau, c'))
+      ([], Untyped.Delay (Untyped.TauConst tau, c'))
   | Sugared.Box (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
-      (binds, Untyped.Box (Context.TauConst tau, e', abs))
+      (binds, Untyped.Box (Untyped.TauConst tau, e', abs))
   | Sugared.Unbox (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
-      (binds, Untyped.Unbox (Context.TauConst tau, e', abs))
+      (binds, Untyped.Unbox (Untyped.TauConst tau, e', abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
@@ -303,7 +304,7 @@ let desugar_command state { Sugared.it = cmd; at = loc } =
       let state' = add_fresh_ty_names ~loc state new_names in
       let aux (params, _, ty_def) (_, ty_name') (state', defs) =
         let params' =
-          List.map (fun a -> (a, Context.TyParamModule.fresh a)) params
+          List.map (fun a -> (a, Untyped.TyParamModule.fresh a)) params
         in
         let state'' = add_fresh_ty_params state' params' in
         let state''', ty_def' = desugar_ty_def ~loc state'' ty_def in

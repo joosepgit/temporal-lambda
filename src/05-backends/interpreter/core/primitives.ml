@@ -1,21 +1,26 @@
-open Utils
+module Error = Utils.Error
 module Ast = Language.Ast
 module Const = Language.Const
 module Primitives = Language.Primitives
+module PrettyPrint = Language.PrettyPrint
 
 let binary_function f = function
   | Ast.Tuple [ expr1; expr2 ] -> f expr1 expr2
-  | expr -> Error.runtime "Pair expected but got %t" (Ast.print_expression expr)
+  | expr ->
+      Error.runtime "Pair expected but got %t"
+        (PrettyPrint.print_expression expr)
 
 let get_int = function
   | Ast.Const (Const.Integer n) -> n
   | expr ->
-      Error.runtime "Integer expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Integer expected but got %t"
+        (PrettyPrint.print_expression expr)
 
 let get_float = function
   | Ast.Const (Const.Float n) -> n
   | expr ->
-      Error.runtime "Float expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Float expected but got %t"
+        (PrettyPrint.print_expression expr)
 
 let int_to f expr =
   let n = get_int expr in
@@ -67,10 +72,10 @@ let comparison f =
   binary_function (fun e1 e2 ->
       if not (comparable_expression e1) then
         Error.runtime "Incomparable expression %t"
-          (Ast.print_expression ~max_level:0 e1)
+          (PrettyPrint.print_expression ~max_level:0 e1)
       else if not (comparable_expression e2) then
         Error.runtime "Incomparable expression %t"
-          (Ast.print_expression ~max_level:0 e2)
+          (PrettyPrint.print_expression ~max_level:0 e2)
       else Ast.Return (Ast.Const (Const.Boolean (f e1 e2))))
 
 let primitive_function = function
@@ -94,4 +99,5 @@ let primitive_function = function
   | Primitives.FloatNeg -> float_to_float ( ~-. )
   | Primitives.ToString ->
       fun expr ->
-        Ast.Return (Ast.Const (Const.String (Ast.string_of_expression expr)))
+        Ast.Return
+          (Ast.Const (Const.String (PrettyPrint.string_of_expression expr)))

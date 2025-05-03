@@ -1,18 +1,22 @@
-open Utils
+module Error = Utils.Error
 module Ast = Language.Ast
-module Context = Language.Context
 module Const = Language.Const
+module Context = Language.Context
+module Exception = Language.Exception
+module PrettyPrint = Language.PrettyPrint
+
+module ContextHolderModule =
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
 
 type state = {
   variables :
-    (Context.ty_param list * Context.tau_param list * Ast.ty)
-    Ast.VariableContext.t;
-  type_definitions : (Context.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
+    (Ast.ty_param list * Ast.tau_param list * Ast.ty) ContextHolderModule.t;
+  type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
 }
 
 let initial_state =
   {
-    variables = Ast.VariableContext.empty;
+    variables = ContextHolderModule.empty;
     type_definitions =
       (Ast.TyNameMap.empty
       |> Ast.TyNameMap.add Ast.bool_ty_name
@@ -26,7 +30,7 @@ let initial_state =
            ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
       |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
       |>
-      let a = Context.TyParamModule.fresh "list" in
+      let a = Ast.TyParamModule.fresh "list" in
       Ast.TyNameMap.add Ast.list_ty_name
         ( [ a ],
           Ast.TySum
@@ -43,23 +47,23 @@ let initial_state =
   }
 
 let print_type_constraint t1 t2 =
-  let ty_pp = Context.TyPrintParam.create () in
-  let tau_pp = Context.TauPrintParam.create () in
+  let ty_pp = PrettyPrint.TyPrintParam.create () in
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TypeConstraint(%t = %t)"
-    (Ast.print_ty ty_pp tau_pp t1)
-    (Ast.print_ty ty_pp tau_pp t2)
+    (PrettyPrint.print_ty ty_pp tau_pp t1)
+    (PrettyPrint.print_ty ty_pp tau_pp t2)
 
 let print_tau_constraint tau1 tau2 =
-  let tau_pp = Context.TauPrintParam.create () in
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TauConstraint(%t = %t)"
-    (Context.print_tau tau_pp tau1)
-    (Context.print_tau tau_pp tau2)
+    (PrettyPrint.print_tau tau_pp tau1)
+    (PrettyPrint.print_tau tau_pp tau2)
 
 let print_tau_geq tau1 tau2 =
-  let tau_pp = Context.TauPrintParam.create () in
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TauGeq(%t >= %t)"
-    (Context.print_tau tau_pp tau1)
-    (Context.print_tau tau_pp tau2)
+    (PrettyPrint.print_tau tau_pp tau1)
+    (PrettyPrint.print_tau tau_pp tau2)
 
 let print_constraints constraints =
   Format.fprintf Format.std_formatter "[%a]"
@@ -99,12 +103,12 @@ let check_ty_def state = function
   | Ast.TyInline ty -> check_ty state ty
 
 let fresh_ty () =
-  let a = Context.TyParamModule.fresh "ty" in
+  let a = Ast.TyParamModule.fresh "ty" in
   Ast.TyParam a
 
 let fresh_tau () =
-  let t = Context.TauParamModule.fresh "tau" in
-  Context.TauParam t
+  let t = Ast.TauParamModule.fresh "tau" in
+  Ast.TauParam t
 
 let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_tau ())
 
@@ -112,28 +116,28 @@ let extend_variables state vars =
   List.fold_left
     (fun state (x, ty) ->
       let updated_variables =
-        Ast.VariableContext.add_variable x ([], [], ty) state.variables
+        ContextHolderModule.add_variable x ([], [], ty) state.variables
       in
       { state with variables = updated_variables })
     state vars
 
 let extend_temporal state t =
-  let updated_variables = Ast.VariableContext.add_temp t state.variables in
+  let updated_variables = ContextHolderModule.add_temp t state.variables in
   { state with variables = updated_variables }
 
 let refreshing_ty_subst params =
   List.fold_left
     (fun subst param ->
       let ty = fresh_ty () in
-      Context.TyParamMap.add param ty subst)
-    Context.TyParamMap.empty params
+      Ast.TyParamMap.add param ty subst)
+    Ast.TyParamMap.empty params
 
 let refreshing_tau_subst params =
   List.fold_left
     (fun subst param ->
       let tau = fresh_tau () in
-      Context.TauParamMap.add param tau subst)
-    Context.TauParamMap.empty params
+      Ast.TauParamMap.add param tau subst)
+    Ast.TauParamMap.empty params
 
 let infer_variant state lbl =
   let rec find = function
@@ -149,8 +153,7 @@ let infer_variant state lbl =
   in
   let ty_subst = refreshing_ty_subst params in
   let tau_subst = refreshing_tau_subst [] in
-  let args =
-    List.map (fun param -> Context.TyParamMap.find param ty_subst) params
+  let args = List.map (fun param -> Ast.TyParamMap.find param ty_subst) params
   and ty' = Option.map (Ast.substitute_ty ty_subst tau_subst) ty in
   (ty', Ast.TyApply (ty_name, args))
 
@@ -188,7 +191,7 @@ let rec infer_pattern state = function
 let rec infer_expression state = function
   | Ast.Var x ->
       let ty_params, tau_params, ty =
-        Ast.VariableContext.find_variable x state.variables
+        ContextHolderModule.find_variable x state.variables
       in
       let ty_subst = refreshing_ty_subst ty_params in
       let tau_subst = refreshing_tau_subst tau_params in
@@ -233,12 +236,12 @@ let rec infer_expression state = function
 and infer_computation state = function
   | Ast.Return expr ->
       let ty, eqs = infer_expression state expr in
-      (Ast.CompTy (ty, Context.TauConst 0), eqs)
+      (Ast.CompTy (ty, Ast.TauConst 0), eqs)
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
-      ( CompTy (ty2, Context.TauAdd (tau1, tau2)),
+      ( CompTy (ty2, Ast.TauAdd (tau1, tau2)),
         (Constraint.TypeConstraint (ty1, ty1') :: eqs1) @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
@@ -263,7 +266,7 @@ and infer_computation state = function
   | Ast.Delay (tau, c) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' c in
-      (CompTy (ty, Context.TauAdd (tau, tau')), eqs)
+      (CompTy (ty, Ast.TauAdd (tau, tau')), eqs)
   | Ast.Box (tau, e, abs) ->
       let state_ahead = extend_temporal state tau in
       let value_ty, eqs = infer_expression state_ahead e in
@@ -273,19 +276,21 @@ and infer_computation state = function
         @ eqs' )
   | Ast.Unbox (tau, e, abs) ->
       let abstract_context_tau =
-        Ast.VariableContext.abstract_tau_sum state.variables
+        ContextHolderModule.abstract_tau_sum state.variables
       in
-      let past_context = Ast.VariableContext.subtract_tau tau state.variables in
+      let past_context = ContextHolderModule.subtract_tau tau state.variables in
       let past_state = { state with variables = past_context } in
       let past_value_ty, eqs =
         try infer_expression past_state e
-        with Context.VariableNotFound var ->
+        with Exception.VariableNotFound var ->
           Error.typing
             "Variable %t did not exist in boxed form %t temporal units ago, \
              unboxing too soon or with too large temporal value?"
             (fun ppf -> Format.fprintf ppf "%s" var)
             (fun ppf ->
-              Context.print_tau (Context.TauPrintParam.create ()) tau ppf)
+              PrettyPrint.print_tau
+                (PrettyPrint.TauPrintParam.create ())
+                tau ppf)
       in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
@@ -316,10 +321,10 @@ let subst_equations ty_subst tau_subst =
   List.map subst_equation
 
 let add_ty_subst a ty ty_subst tau_subst =
-  Context.TyParamMap.add a (Ast.substitute_ty ty_subst tau_subst ty) ty_subst
+  Ast.TyParamMap.add a (Ast.substitute_ty ty_subst tau_subst ty) ty_subst
 
 let add_tau_subst tp tau tau_subst =
-  Context.TauParamMap.add tp (Ast.substitute_tau tau_subst tau) tau_subst
+  Ast.TauParamMap.add tp (Ast.substitute_tau tau_subst tau) tau_subst
 
 let rec occurs_ty a = function
   | Ast.TyParam a' -> a = a'
@@ -330,9 +335,9 @@ let rec occurs_ty a = function
   | Ast.TyBox (_, ty) -> occurs_ty a ty
 
 let rec occurs_tau a = function
-  | Context.TauParam a' -> a = a'
-  | Context.TauConst _ -> false
-  | Context.TauAdd (tau, tau') -> occurs_tau a tau || occurs_tau a tau'
+  | Ast.TauParam a' -> a = a'
+  | Ast.TauConst _ -> false
+  | Ast.TauAdd (tau, tau') -> occurs_tau a tau || occurs_tau a tau'
 
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -344,20 +349,20 @@ let unfold state ty_name args =
   | _, Ast.TySum _ -> assert false
   | params, Ast.TyInline ty ->
       let ty_subst =
-        List.combine params args |> List.to_seq |> Context.TyParamMap.of_seq
+        List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
       in
       let tau_subst = refreshing_tau_subst [] in
       Ast.substitute_ty ty_subst tau_subst ty
 
 let rec simplify_tau tau =
   match tau with
-  | Context.TauAdd (t1, t2) -> (
+  | Ast.TauAdd (t1, t2) -> (
       let t1' = simplify_tau t1 in
       let t2' = simplify_tau t2 in
       match (t1', t2') with
-      | Context.TauConst c1, Context.TauConst c2 -> Context.TauConst (c1 + c2)
-      | Context.TauConst 0, t | t, Context.TauConst 0 -> t
-      | _ -> Context.TauAdd (t1', t2'))
+      | Ast.TauConst c1, Ast.TauConst c2 -> Ast.TauConst (c1 + c2)
+      | Ast.TauConst 0, t | t, Ast.TauConst 0 -> t
+      | _ -> Ast.TauAdd (t1', t2'))
   | _ -> tau
 
 and simplify_ty ty =
@@ -383,9 +388,9 @@ let compare_tau a b =
 let build_tau_param_list tau =
   let rec aux acc tau =
     match tau with
-    | Context.TauParam t -> Either.Left t :: acc
-    | Context.TauConst c -> Either.Right c :: acc
-    | Context.TauAdd (tau1, tau2) ->
+    | Ast.TauParam t -> Either.Left t :: acc
+    | Ast.TauConst c -> Either.Right c :: acc
+    | Ast.TauAdd (tau1, tau2) ->
         let acc' = aux acc tau2 in
         aux acc' tau1
   in
@@ -409,22 +414,20 @@ let cancel_common_elements left right =
 
 let build_tau_from_param_list params =
   let to_tau = function
-    | Either.Left x -> Context.TauParam x
-    | Either.Right x -> Context.TauConst x
+    | Either.Left x -> Ast.TauParam x
+    | Either.Right x -> Ast.TauConst x
   in
   match params with
-  | [] -> Context.TauConst 0
+  | [] -> Ast.TauConst 0
   | hd :: tl ->
-      List.fold_left
-        (fun acc e -> Context.TauAdd (acc, to_tau e))
-        (to_tau hd) tl
+      List.fold_left (fun acc e -> Ast.TauAdd (acc, to_tau e)) (to_tau hd) tl
 
 let rec unify_with_accum state prev_unsolved_size unsolved = function
   | [] ->
       let current_unsolved_size = List.length unsolved in
       if current_unsolved_size = 0 then
         (* All constraints solved *)
-        (Context.TyParamMap.empty, Context.TauParamMap.empty)
+        (Ast.TyParamMap.empty, Ast.TauParamMap.empty)
       else if current_unsolved_size = prev_unsolved_size then
         (* No progress made on last pass — constraints are stuck *)
         Error.typing
@@ -441,37 +444,37 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       match (tau1', tau2') with
       | _ when tau1' = tau2' ->
           unify_with_accum state prev_unsolved_size unsolved eqs
-      | Context.TauParam p1, Context.TauParam p2 when p1 = p2 ->
+      | Ast.TauParam p1, Ast.TauParam p2 when p1 = p2 ->
           unify_with_accum state prev_unsolved_size unsolved eqs
-      | Context.TauParam tp, tau when not (occurs_tau tp tau) ->
+      | Ast.TauParam tp, tau when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
             unify_with_accum state prev_unsolved_size unsolved
-              (subst_equations Context.TyParamMap.empty
-                 (Context.TauParamMap.singleton tp tau)
+              (subst_equations Ast.TyParamMap.empty
+                 (Ast.TauParamMap.singleton tp tau)
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | tau, Context.TauParam tp when not (occurs_tau tp tau) ->
+      | tau, Ast.TauParam tp when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
             unify_with_accum state prev_unsolved_size unsolved
-              (subst_equations Context.TyParamMap.empty
-                 (Context.TauParamMap.singleton tp tau)
+              (subst_equations Ast.TyParamMap.empty
+                 (Ast.TauParamMap.singleton tp tau)
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | Context.TauConst 0, Context.TauAdd (t1, t2)
-      | Context.TauAdd (t1, t2), Context.TauConst 0 ->
+      | Ast.TauConst 0, Ast.TauAdd (t1, t2)
+      | Ast.TauAdd (t1, t2), Ast.TauConst 0 ->
           unify_with_accum state prev_unsolved_size unsolved
-            (Constraint.TauConstraint (t1, Context.TauConst 0)
-            :: Constraint.TauConstraint (t2, Context.TauConst 0)
+            (Constraint.TauConstraint (t1, Ast.TauConst 0)
+            :: Constraint.TauConstraint (t2, Ast.TauConst 0)
             :: eqs)
-      | t, Context.TauAdd (t1, t2) | Context.TauAdd (t1, t2), t ->
+      | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
           let left = build_sorted_tau_param_list t in
-          let right = build_sorted_tau_param_list (Context.TauAdd (t1, t2)) in
+          let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
           let left', right' = cancel_common_elements left right in
           let left_tau = build_tau_from_param_list left' in
           let right_tau = build_tau_from_param_list right' in
-          if left_tau = t && right_tau = Context.TauAdd (t1, t2) then
+          if left_tau = t && right_tau = Ast.TauAdd (t1, t2) then
             unify_with_accum state prev_unsolved_size
               (Constraint.TauConstraint (left_tau, right_tau) :: unsolved)
               eqs
@@ -489,8 +492,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let maybe_tau_vals =
         try
           Some
-            ( Ast.VariableContext.eval_tau tau_greater_or_equal_simplified,
-              Ast.VariableContext.eval_tau tau_smaller_simplified )
+            ( ContextHolderModule.eval_tau tau_greater_or_equal_simplified,
+              ContextHolderModule.eval_tau tau_smaller_simplified )
         with _exn -> None
       in
 
@@ -505,12 +508,12 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
           if tau_smaller_val > tau_greater_or_equal_val then
             Error.typing "Cannot unify temporal values %t >= %t"
               (fun ppf ->
-                Context.print_tau
-                  (Context.TauPrintParam.create ())
+                PrettyPrint.print_tau
+                  (PrettyPrint.TauPrintParam.create ())
                   tau_greater_or_equal_simplified ppf)
               (fun ppf ->
-                Context.print_tau
-                  (Context.TauPrintParam.create ())
+                PrettyPrint.print_tau
+                  (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
           else unify_with_accum state prev_unsolved_size unsolved eqs)
   | Constraint.TypeConstraint (t1, t2) :: eqs when t1 = t2 ->
@@ -555,8 +558,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let ty_subst, tau_subst =
         unify_with_accum state prev_unsolved_size unsolved
           (subst_equations
-             (Context.TyParamMap.singleton a t)
-             Context.TauParamMap.empty eqs)
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty eqs)
       in
       (add_ty_subst a t ty_subst tau_subst, tau_subst)
   | Constraint.TypeConstraint (t, Ast.TyParam a) :: eqs when not (occurs_ty a t)
@@ -564,8 +567,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let ty_subst, tau_subst =
         unify_with_accum state prev_unsolved_size unsolved
           (subst_equations
-             (Context.TyParamMap.singleton a t)
-             Context.TauParamMap.empty eqs)
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty eqs)
       in
       (add_ty_subst a t ty_subst tau_subst, tau_subst)
   | Constraint.TypeConstraint (Ast.TyBox (tau1, ty1), Ast.TyBox (tau2, ty2))
@@ -575,11 +578,11 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
         :: Constraint.TauConstraint (tau1, tau2)
         :: eqs)
   | Constraint.TypeConstraint (t1, t2) :: _ ->
-      let ty_pp = Context.TyPrintParam.create () in
-      let tau_pp = Context.TauPrintParam.create () in
+      let ty_pp = PrettyPrint.TyPrintParam.create () in
+      let tau_pp = PrettyPrint.TauPrintParam.create () in
       Error.typing "Cannot unify types %t = %t"
-        (Ast.print_ty ty_pp tau_pp t1)
-        (Ast.print_ty ty_pp tau_pp t2)
+        (PrettyPrint.print_ty ty_pp tau_pp t1)
+        (PrettyPrint.print_ty ty_pp tau_pp t2)
 
 let unify state constraints = unify_with_accum state 0 [] constraints
 
@@ -592,7 +595,7 @@ let infer state e =
 let add_external_function x ty_sch state =
   {
     state with
-    variables = Ast.VariableContext.add_variable x ty_sch state.variables;
+    variables = ContextHolderModule.add_variable x ty_sch state.variables;
   }
 
 let add_top_definition state x expr =
@@ -602,8 +605,8 @@ let add_top_definition state x expr =
   let ty'' = simplify_ty ty' in
   let free_vars, free_taus = Ast.free_vars ty'' in
   let ty_sch =
-    ( free_vars |> Context.TyParamSet.elements,
-      free_taus |> Context.TauParamSet.elements,
+    ( free_vars |> Ast.TyParamSet.elements,
+      free_taus |> Ast.TauParamSet.elements,
       ty'' )
   in
   add_external_function x ty_sch state

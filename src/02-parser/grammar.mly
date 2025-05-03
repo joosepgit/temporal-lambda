@@ -380,6 +380,8 @@ ty: mark_position(plain_ty) { $1 }
 plain_ty:
   | t1 = ty_apply ARROW t2 = ty HASH tau = INT
     { TyArrow (t1, CompTy (t2, tau)) }
+  | t1 = ty_apply ARROW t2 = ty
+    { TyArrow (t1, CompTy (t2, 0)) }
   | t = plain_prod_ty
     { t }
 

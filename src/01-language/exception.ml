@@ -1,0 +1,1 @@
+exception VariableNotFound of string

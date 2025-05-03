@@ -1,4 +1,4 @@
-open Utils
+module Error = Utils.Error
 
 type t = Integer of int | String of string | Boolean of bool | Float of float
 type ty = IntegerTy | StringTy | BooleanTy | FloatTy

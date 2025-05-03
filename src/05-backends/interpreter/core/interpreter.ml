@@ -1,12 +1,23 @@
-open Utils
+module Error = Utils.Error
 module Ast = Language.Ast
 module Const = Language.Const
+module Context = Language.Context
+module PrettyPrint = Language.PrettyPrint
 
-let initial_environment : Ast.evaluation_environment =
+module ContextHolderModule =
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
+
+type evaluation_environment = {
+  state : (Ast.tau * Ast.expression) ContextHolderModule.t;
+  variables : Ast.expression ContextHolderModule.t;
+  builtin_functions : (Ast.expression -> Ast.computation) ContextHolderModule.t;
+}
+
+let initial_environment =
   {
-    state = Ast.VariableContext.empty;
-    variables = Ast.VariableContext.empty;
-    builtin_functions = Ast.VariableContext.empty;
+    state = ContextHolderModule.empty;
+    variables = ContextHolderModule.empty;
+    builtin_functions = ContextHolderModule.empty;
   }
 
 exception PatternMismatch
@@ -17,26 +28,29 @@ type computation_reduction =
   | DoCtx of computation_reduction
   | ComputationRedex of computation_redex
 
-let rec eval_tuple (env : Ast.evaluation_environment) = function
+let rec eval_tuple (env : evaluation_environment) = function
   | Ast.Tuple exprs -> exprs
   | Ast.Var x ->
-      eval_tuple env (Ast.VariableContext.find_variable x env.variables)
+      eval_tuple env (ContextHolderModule.find_variable x env.variables)
   | expr ->
-      Error.runtime "Tuple expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Tuple expected but got %t"
+        (PrettyPrint.print_expression expr)
 
-let rec eval_variant (env : Ast.evaluation_environment) = function
+let rec eval_variant (env : evaluation_environment) = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
   | Ast.Var x ->
-      eval_variant env (Ast.VariableContext.find_variable x env.variables)
+      eval_variant env (ContextHolderModule.find_variable x env.variables)
   | expr ->
-      Error.runtime "Variant expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Variant expected but got %t"
+        (PrettyPrint.print_expression expr)
 
-let rec eval_const (env : Ast.evaluation_environment) = function
+let rec eval_const (env : evaluation_environment) = function
   | Ast.Const c -> c
   | Ast.Var x ->
-      eval_const env (Ast.VariableContext.find_variable x env.variables)
+      eval_const env (ContextHolderModule.find_variable x env.variables)
   | expr ->
-      Error.runtime "Const expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Const expected but got %t"
+        (PrettyPrint.print_expression expr)
 
 let rec match_pattern_with_expression env pat expr =
   match pat with
@@ -192,11 +206,12 @@ let rec eval_function env = function
         in
         substitute subst comp
   | Ast.Var x -> (
-      match Ast.VariableContext.find_variable_opt x env.variables with
+      match ContextHolderModule.find_variable_opt x env.variables with
       | Some expr -> eval_function env expr
-      | None -> Ast.VariableContext.find_variable x env.builtin_functions)
+      | None -> ContextHolderModule.find_variable x env.builtin_functions)
   | expr ->
-      Error.runtime "Function expected but got %t" (Ast.print_expression expr)
+      Error.runtime "Function expected but got %t"
+        (PrettyPrint.print_expression expr)
 
 let step_in_context step env redCtx ctx term =
   let terms' = step env term in
@@ -245,33 +260,33 @@ let rec step_computation env = function
       | _ -> comps1')
   | Ast.Delay (tau, comp) ->
       let env' =
-        { env with state = Ast.VariableContext.add_temp tau env.state }
+        { env with state = ContextHolderModule.add_temp tau env.state }
       in
       [ (env', ComputationRedex Delay, fun () -> comp) ]
   | Ast.Box (tau, expr, (pat, comp)) -> (
       match pat with
       | Ast.PVar x ->
           let state' =
-            Ast.VariableContext.add_variable x (tau, expr) env.state
+            ContextHolderModule.add_variable x (tau, expr) env.state
           in
           let env' = { env with state = state' } in
           [ (env', ComputationRedex Box, fun () -> comp) ]
       | _ ->
           Error.runtime "Box expected a variable but got pattern %t"
-            (Ast.print_pattern pat))
+            (PrettyPrint.print_pattern pat))
   | Ast.Unbox (tau, expr, (pat, comp)) -> (
       match expr with
       | Ast.Var x ->
-          let past_state = Ast.VariableContext.subtract_tau tau env.state in
-          let _tau', expr' = Ast.VariableContext.find_variable x past_state in
+          let past_state = ContextHolderModule.subtract_tau tau env.state in
+          let _tau', expr' = ContextHolderModule.find_variable x past_state in
           let subst = match_pattern_with_expression env pat expr' in
           [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
       | _ ->
           Error.runtime "Unbox expected a variable but got expression %t"
-            (Ast.print_expression expr))
+            (PrettyPrint.print_expression expr))
 
 type load_state = {
-  environment : Ast.evaluation_environment;
+  environment : evaluation_environment;
   computations : Ast.computation list;
 }
 
@@ -285,7 +300,7 @@ let load_primitive load_state x prim =
       {
         load_state.environment with
         builtin_functions =
-          Ast.VariableContext.add_variable x
+          ContextHolderModule.add_variable x
             (Primitives.primitive_function prim)
             load_state.environment.builtin_functions;
       };
@@ -300,7 +315,7 @@ let load_top_let load_state x expr =
       {
         load_state.environment with
         variables =
-          Ast.VariableContext.add_variable x expr
+          ContextHolderModule.add_variable x expr
             load_state.environment.variables;
       };
   }
@@ -312,7 +327,7 @@ type run_state = load_state
 type step_label = ComputationReduction of computation_reduction | Return
 
 type step = {
-  environment : Ast.evaluation_environment;
+  environment : evaluation_environment;
   label : step_label;
   next_state : unit -> run_state;
 }
