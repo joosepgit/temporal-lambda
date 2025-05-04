@@ -52,9 +52,10 @@ let main () =
     let state' = List.fold_left Loader.load_file state config.filenames in
     let run_state = Backend.run state'.backend in
     if config.debug then
-      PrettyPrint.print_variable_context
-        (module Tau)
-        state'.typechecker.variables Format.std_formatter;
+      print_string
+        (PrettyPrint.string_of_variable_context
+           (module Tau)
+           state'.typechecker.variables);
     run run_state config.debug
   with Error.Error error ->
     Error.print error;

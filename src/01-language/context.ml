@@ -79,22 +79,30 @@ struct
   let rec eval_tau (t : base_tau) : base =
     match t with
     | TauConst c -> c
-    | TauParam _ -> Error.typing "TauParam not supported in eval_tau"
+    | TauParam _ ->
+        raise (UnknownValueInEval "TauParam not supported in eval_tau")
     | TauAdd (t1, t2) -> Base.add (eval_tau t1) (eval_tau t2)
 
   let subtract_tau (tau : base_tau) (lst : 'a t) : 'a t =
+    let rec subtract_eval_tau (t : base_tau) : base =
+      match t with
+      | TauConst c -> c
+      | TauParam _ -> Base.zero (* Ignore unknown values *)
+      | TauAdd (t1, t2) ->
+          Base.add (subtract_eval_tau t1) (subtract_eval_tau t2)
+    in
     let rec subtract remaining target =
       match (remaining, target) with
       | rem, tgt_val when tgt_val = Base.zero -> rem
       | [], _ -> Error.typing "Not enough tau to subtract"
       | VarMap _ :: rest, _ -> subtract rest target
       | Tau t :: rest, tgt_val ->
-          let t_val = eval_tau t in
+          let t_val = subtract_eval_tau t in
           if Base.greater tgt_val t_val then
             subtract rest (Base.subtract tgt_val t_val)
           else
             let remaining_tau = TauConst (Base.subtract t_val tgt_val) in
             Tau remaining_tau :: rest
     in
-    subtract lst (eval_tau tau)
+    subtract lst (subtract_eval_tau tau)
 end

@@ -139,10 +139,10 @@ let print_ty (type a) ?max_level tau_module ty_print_param tau_print_param =
           (TyName.print ty_name)
     | TyParam a -> print "%t" (ty_print_param a)
     | TyArrow (ty1, CompTy (ty2, TauConst z)) when z = Tau.zero ->
-        print ~at_level:3 "(%t → %t)" (aux ~max_level:2 ty1)
+        print ~at_level:3 "%t → %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
     | TyArrow (ty1, CompTy (ty2, tau)) ->
-        print ~at_level:3 "(%t → %t # %t)" (aux ~max_level:2 ty1)
+        print ~at_level:3 "%t → %t # %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
           (print_tau tau_module tau_print_param tau)
     | TyTuple [] -> print "unit"
@@ -253,7 +253,6 @@ let print_vars_and_tys tau_module print_var_and_ty lst ppf =
               let ty_pp = TyPrintParam.create () in
               let tau_pp = TauPrintParam.create () in
               print_var_and_ty ty_pp tau_pp entry ppf;
-              Print.print ppf "\n";
               print_elements tl
         in
         print_elements elements;
@@ -271,21 +270,27 @@ let print_vars_and_tys tau_module print_var_and_ty lst ppf =
 
 let print_vars_and_exprs tau_module print_var_and_expr
     (lst : ('var, 'map, 'tau) Ast.context_elem_ty list) ppf =
+  let print_var_map map ppf =
+    Print.print ppf "{";
+    let elements = VariableMap.bindings map in
+    let rec print_elements = function
+      | [] -> ()
+      | entry :: [] -> print_var_and_expr entry ppf
+      | entry :: tl ->
+          print_var_and_expr entry ppf;
+          Print.print ppf ", ";
+          print_elements tl
+    in
+    print_elements elements
+  in
   let rec print_list lst ppf =
     match lst with
     | [] -> ()
+    | VarMap map :: [] ->
+        print_var_map map ppf;
+        Print.print ppf "}"
     | VarMap map :: rest ->
-        Print.print ppf "{";
-        let elements = VariableMap.bindings map in
-        let rec print_elements = function
-          | [] -> ()
-          | entry :: [] -> print_var_and_expr entry ppf
-          | entry :: tl ->
-              print_var_and_expr entry ppf;
-              Print.print ppf ", ";
-              print_elements tl
-        in
-        print_elements elements;
+        print_var_map map ppf;
         Print.print ppf "}, ";
         print_list rest ppf
     | Tau n :: [] ->
@@ -304,14 +309,10 @@ let print_vars_and_exprs tau_module print_var_and_expr
 let print_variable_context tau_module ctx =
   let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
       =
-    Variable.print variable ppf;
-    Format.fprintf ppf " -> ";
-    print_ty_params ty_pp ty_params ppf;
-    Format.fprintf ppf ", ";
-    print_tau_params tau_pp tau_params ppf;
-    Format.fprintf ppf " ";
-    Format.fprintf ppf "@[%t@]" (print_ty tau_module ty_pp tau_pp ty);
-    Format.pp_print_flush ppf ()
+    Format.fprintf ppf "@[<h>%t -> %t, %t %t@]@." (Variable.print variable)
+      (print_ty_params ty_pp ty_params)
+      (print_tau_params tau_pp tau_params)
+      (print_ty tau_module ty_pp tau_pp ty)
   in
   print_vars_and_tys tau_module print_var_and_ty ctx
 
@@ -323,6 +324,10 @@ let print_interpreter_state tau_module ctx ppf =
       (print_tau tau_module tau_print_param tau)
   in
   print_vars_and_exprs tau_module print_var_and_expr ctx ppf
+
+let string_of_variable_context tau_module context =
+  print_variable_context tau_module context Format.str_formatter;
+  Format.flush_str_formatter ()
 
 let string_of_interpreter_state tau_module context =
   print_interpreter_state tau_module context Format.str_formatter;
