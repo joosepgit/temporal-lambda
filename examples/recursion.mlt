@@ -3,7 +3,7 @@ let rec fact n =
 
 let fib n =
   let rec aux n a b =
-    if n = 0 then delay 1 a else aux (n - 1) b (a + b)
+    if n = 0 then a else aux (n - 1) b (a + b)
   in
   aux n 0 1
 
