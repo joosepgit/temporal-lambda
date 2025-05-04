@@ -1,5 +1,6 @@
 module Print = Utils.Print
 module Ast = Language.Ast
+module Tau = Language.Tau.TauImpl
 module PrettyPrint = Language.PrettyPrint
 
 let tag_marker = "###"
@@ -11,12 +12,13 @@ let print_computation_redex ?max_level red c ppf =
   | Interpreter.DoReturn, Ast.Do (c1, (pat, c2)) ->
       print "@[<hov>%tlet@[<hov>@ %t =@ %t@]%t in@ %t@]" print_mark
         (PrettyPrint.print_pattern pat)
-        (PrettyPrint.print_computation c1)
+        (PrettyPrint.print_computation (module Tau) c1)
         print_mark
-        (PrettyPrint.print_computation c2)
+        (PrettyPrint.print_computation (module Tau) c2)
   | _, comp ->
       print "%t%t%t" print_mark
-        (fun ppf -> PrettyPrint.print_computation ?max_level comp ppf)
+        (fun ppf ->
+          PrettyPrint.print_computation (module Tau) ?max_level comp ppf)
         print_mark
 
 let rec print_computation_reduction ?max_level red c ppf =
@@ -25,12 +27,12 @@ let rec print_computation_reduction ?max_level red c ppf =
   | Interpreter.DoCtx red, Ast.Do (c1, (Ast.PNonbinding, c2)) ->
       print "@[<hov>%t;@ %t@]"
         (print_computation_reduction red c1)
-        (PrettyPrint.print_computation c2)
+        (PrettyPrint.print_computation (module Tau) c2)
   | DoCtx red, Ast.Do (c1, (pat, c2)) ->
       print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]"
         (PrettyPrint.print_pattern pat)
         (print_computation_reduction red c1)
-        (PrettyPrint.print_computation c2)
+        (PrettyPrint.print_computation (module Tau) c2)
   | ComputationRedex redex, c -> print_computation_redex ?max_level redex c ppf
   | _, _ -> assert false
 
@@ -50,7 +52,7 @@ let split_string sep str =
 
 let view_computation_with_redexes red comp =
   (match red with
-  | None -> PrettyPrint.print_computation comp Format.str_formatter
+  | None -> PrettyPrint.print_computation (module Tau) comp Format.str_formatter
   | Some red -> print_computation_reduction red comp Format.str_formatter);
   match split_string tag_marker (Format.flush_str_formatter ()) with
   | [ code ] -> [ Vdom.text code ]

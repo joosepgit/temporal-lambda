@@ -1,9 +1,9 @@
 module Ast = Language.Ast
 
-type t =
-  | TypeConstraint of (Ast.ty * Ast.ty)
-  | TauConstraint of (Ast.tau * Ast.tau)
-  | TauGeq of (Ast.tau * Ast.tau)
+type 'a t =
+  | TypeConstraint of ('a Ast.ty * 'a Ast.ty)
+  | TauConstraint of ('a Ast.tau * 'a Ast.tau)
+  | TauGeq of ('a Ast.tau * 'a Ast.tau)
 
 let type_constraint v = TypeConstraint v
 let tau_constraint v = TauConstraint v

@@ -72,7 +72,7 @@ let float =
 let operatorchar = ['!' '$' '%' '&' '*' '+' '-' '.' '/' ':' '.' '<' '=' '>' '?' '@' '^' '|' '~']
 
 let prefixop = ['~' '?' '!']                  operatorchar*
-let infixop0 = ['=' '<' '>' '|' '&' '$']  operatorchar*
+let infixop0 = ['=' '<' '>' '|' '&' '$']      operatorchar*
 let infixop1 = ['@' '^']                      operatorchar*
 let infixop2 = ['+' '-']                      operatorchar*
 let infixop3 = ['*' '/' '%']                  operatorchar*

@@ -1,17 +1,19 @@
 module Error = Utils.Error
 module Ast = Language.Ast
+module Tau = Language.Tau.TauImpl
 module Const = Language.Const
 module Context = Language.Context
 module Exception = Language.Exception
 module PrettyPrint = Language.PrettyPrint
 
 module ContextHolderModule =
-  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
 
 type state = {
   variables :
-    (Ast.ty_param list * Ast.tau_param list * Ast.ty) ContextHolderModule.t;
-  type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
+    (Ast.ty_param list * Ast.tau_param list * Tau.t Ast.ty)
+    ContextHolderModule.t;
+  type_definitions : (Ast.ty_param list * Tau.t Ast.ty_def) Ast.TyNameMap.t;
 }
 
 let initial_state =
@@ -50,20 +52,20 @@ let print_type_constraint t1 t2 =
   let ty_pp = PrettyPrint.TyPrintParam.create () in
   let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TypeConstraint(%t = %t)"
-    (PrettyPrint.print_ty ty_pp tau_pp t1)
-    (PrettyPrint.print_ty ty_pp tau_pp t2)
+    (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
+    (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
 
 let print_tau_constraint tau1 tau2 =
   let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TauConstraint(%t = %t)"
-    (PrettyPrint.print_tau tau_pp tau1)
-    (PrettyPrint.print_tau tau_pp tau2)
+    (PrettyPrint.print_tau (module Tau) tau_pp tau1)
+    (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
 let print_tau_geq tau1 tau2 =
   let tau_pp = PrettyPrint.TauPrintParam.create () in
   Format.printf "TauGeq(%t >= %t)"
-    (PrettyPrint.print_tau tau_pp tau1)
-    (PrettyPrint.print_tau tau_pp tau2)
+    (PrettyPrint.print_tau (module Tau) tau_pp tau1)
+    (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
 let print_constraints constraints =
   Format.fprintf Format.std_formatter "[%a]"
@@ -213,7 +215,7 @@ let rec infer_expression state = function
   | Ast.PureLambda abs ->
       let ty, CompTy (ty', tau), eqs = infer_abstraction state abs in
       ( Ast.TyArrow (ty, CompTy (ty', tau)),
-        Constraint.TauConstraint (tau, TauConst 0) :: eqs )
+        Constraint.TauConstraint (tau, TauConst Tau.zero) :: eqs )
   | Ast.RecLambda (f, abs) ->
       let f_ty = fresh_ty () in
       let state' = extend_variables state [ (f, f_ty) ] in
@@ -221,7 +223,7 @@ let rec infer_expression state = function
       let out_ty = Ast.TyArrow (ty, CompTy (ty', tau)) in
       ( out_ty,
         Constraint.TypeConstraint (f_ty, out_ty)
-        :: Constraint.TauConstraint (tau, TauConst 0)
+        :: Constraint.TauConstraint (tau, TauConst Tau.zero)
         :: eqs )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
@@ -236,7 +238,7 @@ let rec infer_expression state = function
 and infer_computation state = function
   | Ast.Return expr ->
       let ty, eqs = infer_expression state expr in
-      (Ast.CompTy (ty, Ast.TauConst 0), eqs)
+      (Ast.CompTy (ty, Ast.TauConst Tau.zero), eqs)
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
       let state' = extend_temporal state tau1 in
@@ -289,6 +291,7 @@ and infer_computation state = function
             (fun ppf -> Format.fprintf ppf "%s" var)
             (fun ppf ->
               PrettyPrint.print_tau
+                (module Tau)
                 (PrettyPrint.TauPrintParam.create ())
                 tau ppf)
       in
@@ -360,8 +363,8 @@ let rec simplify_tau tau =
       let t1' = simplify_tau t1 in
       let t2' = simplify_tau t2 in
       match (t1', t2') with
-      | Ast.TauConst c1, Ast.TauConst c2 -> Ast.TauConst (c1 + c2)
-      | Ast.TauConst 0, t | t, Ast.TauConst 0 -> t
+      | Ast.TauConst c1, Ast.TauConst c2 -> Ast.TauConst (Tau.add c1 c2)
+      | (Ast.TauConst z, t | t, Ast.TauConst z) when z = Tau.zero -> t
       | _ -> Ast.TauAdd (t1', t2'))
   | _ -> tau
 
@@ -418,7 +421,7 @@ let build_tau_from_param_list params =
     | Either.Right x -> Ast.TauConst x
   in
   match params with
-  | [] -> Ast.TauConst 0
+  | [] -> Ast.TauConst Tau.zero
   | hd :: tl ->
       List.fold_left (fun acc e -> Ast.TauAdd (acc, to_tau e)) (to_tau hd) tl
 
@@ -462,11 +465,12 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
                  eqs)
           in
           (ty_subst, add_tau_subst tp tau tau_subst)
-      | Ast.TauConst 0, Ast.TauAdd (t1, t2)
-      | Ast.TauAdd (t1, t2), Ast.TauConst 0 ->
+      | Ast.TauConst z, Ast.TauAdd (t1, t2)
+      | Ast.TauAdd (t1, t2), Ast.TauConst z
+        when z = Tau.zero ->
           unify_with_accum state prev_unsolved_size unsolved
-            (Constraint.TauConstraint (t1, Ast.TauConst 0)
-            :: Constraint.TauConstraint (t2, Ast.TauConst 0)
+            (Constraint.TauConstraint (t1, Ast.TauConst Tau.zero)
+            :: Constraint.TauConstraint (t2, Ast.TauConst Tau.zero)
             :: eqs)
       | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
           let left = build_sorted_tau_param_list t in
@@ -509,10 +513,12 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
             Error.typing "Cannot unify temporal values %t >= %t"
               (fun ppf ->
                 PrettyPrint.print_tau
+                  (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_greater_or_equal_simplified ppf)
               (fun ppf ->
                 PrettyPrint.print_tau
+                  (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
           else unify_with_accum state prev_unsolved_size unsolved eqs)
@@ -581,8 +587,8 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       let ty_pp = PrettyPrint.TyPrintParam.create () in
       let tau_pp = PrettyPrint.TauPrintParam.create () in
       Error.typing "Cannot unify types %t = %t"
-        (PrettyPrint.print_ty ty_pp tau_pp t1)
-        (PrettyPrint.print_ty ty_pp tau_pp t2)
+        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
+        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
 
 let unify state constraints = unify_with_accum state 0 [] constraints
 

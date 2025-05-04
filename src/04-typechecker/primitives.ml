@@ -1,4 +1,5 @@
 module Ast = Language.Ast
+module Tau = Language.Tau.TauImpl
 module Context = Language.Context
 module Const = Language.Const
 module Primitives = Language.Primitives
@@ -7,60 +8,59 @@ let poly_type ty =
   let a = Ast.TyParamModule.fresh "poly" in
   ([ a ], [], ty (Ast.TyParam a))
 
-let unary_integer_op_ty =
+let unary_integer_op_ty tau =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyConst Const.IntegerTy,
-        Ast.CompTy (Ast.TyConst Const.IntegerTy, Ast.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.IntegerTy, tau) ) )
 
-let binary_integer_op_ty =
+let binary_integer_op_ty tau =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.IntegerTy; Ast.TyConst Const.IntegerTy ],
-        Ast.CompTy (Ast.TyConst Const.IntegerTy, Ast.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.IntegerTy, tau) ) )
 
-let unary_float_op_ty =
+let unary_float_op_ty tau =
   ( [],
     [],
     Ast.TyArrow
-      ( Ast.TyConst Const.FloatTy,
-        Ast.CompTy (Ast.TyConst Const.FloatTy, Ast.TauConst 0) ) )
+      (Ast.TyConst Const.FloatTy, Ast.CompTy (Ast.TyConst Const.FloatTy, tau))
+  )
 
-let binary_float_op_ty =
+let binary_float_op_ty tau =
   ( [],
     [],
     Ast.TyArrow
       ( Ast.TyTuple [ Ast.TyConst Const.FloatTy; Ast.TyConst Const.FloatTy ],
-        Ast.CompTy (Ast.TyConst Const.FloatTy, Ast.TauConst 0) ) )
+        Ast.CompTy (Ast.TyConst Const.FloatTy, tau) ) )
 
-let comparison_ty =
+let comparison_ty tau =
   poly_type (fun a ->
       Ast.TyArrow
-        ( Ast.TyTuple [ a; a ],
-          Ast.CompTy (Ast.TyConst Const.BooleanTy, Ast.TauConst 0) ))
+        (Ast.TyTuple [ a; a ], Ast.CompTy (Ast.TyConst Const.BooleanTy, tau)))
 
 let primitive_type_scheme = function
-  | Primitives.CompareEq -> comparison_ty
-  | Primitives.CompareLt -> comparison_ty
-  | Primitives.CompareGt -> comparison_ty
-  | Primitives.CompareLe -> comparison_ty
-  | Primitives.CompareGe -> comparison_ty
-  | Primitives.CompareNe -> comparison_ty
-  | Primitives.IntegerAdd -> binary_integer_op_ty
-  | Primitives.IntegerMul -> binary_integer_op_ty
-  | Primitives.IntegerSub -> binary_integer_op_ty
-  | Primitives.IntegerDiv -> binary_integer_op_ty
-  | Primitives.IntegerMod -> binary_integer_op_ty
-  | Primitives.IntegerNeg -> unary_integer_op_ty
-  | Primitives.FloatAdd -> binary_float_op_ty
-  | Primitives.FloatMul -> binary_float_op_ty
-  | Primitives.FloatSub -> binary_float_op_ty
-  | Primitives.FloatDiv -> binary_float_op_ty
-  | Primitives.FloatPow -> binary_float_op_ty
-  | Primitives.FloatNeg -> unary_float_op_ty
+  | Primitives.CompareEq -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.CompareLt -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.CompareGt -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.CompareLe -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.CompareGe -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.CompareNe -> comparison_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerAdd -> binary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerMul -> binary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerSub -> binary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerDiv -> binary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerMod -> binary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.IntegerNeg -> unary_integer_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatAdd -> binary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatMul -> binary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatSub -> binary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatDiv -> binary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatPow -> binary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.FloatNeg -> unary_float_op_ty (Ast.TauConst Tau.zero)
   | Primitives.ToString ->
       poly_type (fun a ->
           Ast.TyArrow
-            (a, Ast.CompTy (Ast.TyConst Const.StringTy, Ast.TauConst 0)))
+            (a, Ast.CompTy (Ast.TyConst Const.StringTy, Ast.TauConst Tau.zero)))

@@ -18,17 +18,21 @@ module TauParamMap = Map.Make (TauParamModule)
 module TauParamSet = Set.Make (TauParamModule)
 
 type tau_param = TauParamModule.t
-type tau = TauConst of int | TauParam of tau_param | TauAdd of tau * tau
 
-type ty =
+type 'a tau =
+  | TauConst of 'a
+  | TauParam of tau_param
+  | TauAdd of 'a tau * 'a tau
+
+type 'a ty =
   | TyConst of Const.ty
-  | TyApply of ty_name * ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
+  | TyApply of ty_name * 'a ty list  (** [(ty1, ty2, ..., tyn) type_name] *)
   | TyParam of ty_param  (** ['a] *)
-  | TyArrow of ty * comp_ty  (** [ty1 -> ty2 ! tau] *)
-  | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
-  | TyBox of tau * ty  (** [ [tau]ty ] *)
+  | TyArrow of 'a ty * 'a comp_ty  (** [ty1 -> ty2 ! tau] *)
+  | TyTuple of 'a ty list  (** [ty1 * ty2 * ... * tyn] *)
+  | TyBox of 'a tau * 'a ty  (** [ [tau]ty ] *)
 
-and comp_ty = CompTy of ty * tau  (** [ty ! tau] *)
+and 'a comp_ty = CompTy of 'a ty * 'a tau  (** [ty ! tau] *)
 
 let bool_ty_name = TyName.fresh "bool"
 let int_ty_name = TyName.fresh "int"
@@ -46,45 +50,45 @@ let nil_label = Label.fresh nil_label_string
 let cons_label_string = "$cons$"
 let cons_label = Label.fresh cons_label_string
 
-type pattern =
+type 'a pattern =
   | PVar of variable
-  | PAnnotated of pattern * ty
-  | PAs of pattern * variable
-  | PTuple of pattern list
-  | PVariant of label * pattern option
+  | PAnnotated of 'a pattern * 'a ty
+  | PAs of 'a pattern * variable
+  | PTuple of 'a pattern list
+  | PVariant of label * 'a pattern option
   | PConst of Const.t
   | PNonbinding
 
-type expression =
+type 'a expression =
   | Var of variable
   | Const of Const.t
-  | Annotated of expression * ty
-  | Tuple of expression list
-  | Variant of label * expression option
-  | Lambda of abstraction
-  | PureLambda of abstraction
-  | RecLambda of variable * abstraction
+  | Annotated of 'a expression * 'a ty
+  | Tuple of 'a expression list
+  | Variant of label * 'a expression option
+  | Lambda of 'a abstraction
+  | PureLambda of 'a abstraction
+  | RecLambda of variable * 'a abstraction
 
-and computation =
-  | Return of expression
-  | Do of computation * abstraction
-  | Match of expression * abstraction list
-  | Apply of expression * expression
-  | Delay of tau * computation
-  | Box of tau * expression * abstraction
-  | Unbox of tau * expression * abstraction
+and 'a computation =
+  | Return of 'a expression
+  | Do of 'a computation * 'a abstraction
+  | Match of 'a expression * 'a abstraction list
+  | Apply of 'a expression * 'a expression
+  | Delay of 'a tau * 'a computation
+  | Box of 'a tau * 'a expression * 'a abstraction
+  | Unbox of 'a tau * 'a expression * 'a abstraction
 
-and abstraction = pattern * computation
+and 'a abstraction = 'a pattern * 'a computation
 
-type ty_def = TySum of (label * ty option) list | TyInline of ty
+type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
-type command =
-  | TyDef of (ty_param list * ty_name * ty_def) list
-  | TopLet of variable * expression
-  | TopDo of computation
+type 'a command =
+  | TyDef of (ty_param list * ty_name * 'a ty_def) list
+  | TopLet of variable * 'a expression
+  | TopDo of 'a computation
 
-type ('var, 'map, 'value) context_elem_ty = VarMap of 'map | Tau of tau
-type ('var, 'map, 'value) context = ('var, 'map, 'value) context_elem_ty list
+type ('var, 'map, 'tau) context_elem_ty = VarMap of 'map | Tau of 'tau
+type ('var, 'map, 'tau) context = ('var, 'map, 'tau) context_elem_ty list
 
 let rec substitute_tau subst = function
   | TauConst _ as tau -> tau

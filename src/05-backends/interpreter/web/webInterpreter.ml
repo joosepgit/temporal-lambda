@@ -30,7 +30,7 @@ let view_run_state (run_state : run_state) step_label =
       in
 
       let state_string =
-        PrettyPrint.string_of_interpreter_state environment.state
+        PrettyPrint.string_of_interpreter_state (module Tau) environment.state
       in
       let computation_tree =
         RedexSelectorTM.view_computation_with_redexes reduction comp

@@ -1,0 +1,3 @@
+run let y = 5 in box 3 (y, y+1) as tuple in delay 3 unbox 3 tuple as (a, b) in a+b
+
+run let y = "a" in let z = "b" in box 3 (y, z) as tuple in delay 4 unbox 3 tuple as (a, b) in (a, b)

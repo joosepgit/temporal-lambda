@@ -1,5 +1,6 @@
 module Error = Utils.Error
 module Backend = CliInterpreter
+module Tau = Language.Tau.TauImpl
 module PrettyPrint = Language.PrettyPrint
 module Loader = Loader.Loader (Backend)
 
@@ -34,7 +35,9 @@ let rec run (state : Backend.run_state) debug =
       let state' = step.next_state () in
       if debug && Backend.steps state' = [] then
         print_string
-          (PrettyPrint.string_of_interpreter_state step.environment.state);
+          (PrettyPrint.string_of_interpreter_state
+             (module Tau)
+             step.environment.state);
       run state' debug
 
 let main () =
@@ -49,8 +52,9 @@ let main () =
     let state' = List.fold_left Loader.load_file state config.filenames in
     let run_state = Backend.run state'.backend in
     if config.debug then
-      PrettyPrint.print_variable_context state'.typechecker.variables
-        Format.std_formatter;
+      PrettyPrint.print_variable_context
+        (module Tau)
+        state'.typechecker.variables Format.std_formatter;
     run run_state config.debug
   with Error.Error error ->
     Error.print error;
