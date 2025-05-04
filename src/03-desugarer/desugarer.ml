@@ -4,6 +4,7 @@ module Error = Utils.Error
 module List = Utils.List
 module Sugared = Parser.SugaredAst
 module Untyped = Language.Ast
+module Tau = Language.Tau.TauImpl
 module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
@@ -65,7 +66,7 @@ and desugar_plain_ty ~loc state = function
   | Sugared.TyArrow (ty1, CompTy (ty2, tau)) ->
       let ty1' = desugar_ty state ty1 in
       let ty2' = desugar_ty state ty2 in
-      Untyped.TyArrow (ty1', CompTy (ty2', TauConst tau))
+      Untyped.TyArrow (ty1', CompTy (ty2', TauConst (Tau.of_int tau)))
   | Sugared.TyTuple tys ->
       let tys' = List.map (desugar_ty state) tys in
       Untyped.TyTuple tys'
@@ -198,15 +199,15 @@ and desugar_plain_computation ~loc state =
       ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
   | Sugared.Delay (tau, c) ->
       let c' = desugar_computation state c in
-      ([], Untyped.Delay (Untyped.TauConst tau, c'))
+      ([], Untyped.Delay (TauConst (Tau.of_int tau), c'))
   | Sugared.Box (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
-      (binds, Untyped.Box (Untyped.TauConst tau, e', abs))
+      (binds, Untyped.Box (TauConst (Tau.of_int tau), e', abs))
   | Sugared.Unbox (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
-      (binds, Untyped.Unbox (Untyped.TauConst tau, e', abs))
+      (binds, Untyped.Unbox (TauConst (Tau.of_int tau), e', abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

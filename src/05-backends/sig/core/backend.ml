@@ -1,18 +1,19 @@
 module Ast = Language.Ast
+module Tau = Language.Tau.TauImpl
 module Context = Language.Context
 module Primitives = Language.Primitives
 
 module ContextHolderModule =
-  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
 
 module type S = sig
   type load_state
 
   type evaluation_environment = {
-    state : (Ast.tau * Ast.expression) ContextHolderModule.t;
-    variables : Ast.expression ContextHolderModule.t;
+    state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
+    variables : Tau.t Ast.expression ContextHolderModule.t;
     builtin_functions :
-      (Ast.expression -> Ast.computation) ContextHolderModule.t;
+      (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
   }
 
   val initial_load_state : load_state
@@ -22,11 +23,13 @@ module type S = sig
 
   val load_ty_def :
     load_state ->
-    (Ast.ty_param list * Ast.ty_name * Ast.ty_def) list ->
+    (Ast.ty_param list * Ast.ty_name * Tau.t Ast.ty_def) list ->
     load_state
 
-  val load_top_let : load_state -> Ast.variable -> Ast.expression -> load_state
-  val load_top_do : load_state -> Ast.computation -> load_state
+  val load_top_let :
+    load_state -> Ast.variable -> Tau.t Ast.expression -> load_state
+
+  val load_top_do : load_state -> Tau.t Ast.computation -> load_state
 
   type run_state
   type step_label

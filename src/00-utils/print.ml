@@ -32,10 +32,12 @@ let rec print_cases pp vs ppf =
 
 let print_field fpp vpp (f, v) ppf = print ppf "%t = %t" (fpp f) (vpp v)
 
-let print_tuple pp lst ppf =
+let print_tuple ?max_level pp lst ppf =
   match lst with
   | [] -> print ppf "()"
-  | lst -> print ppf "(@[<hov>%t@])" (print_sequence ", " pp lst)
+  | lst ->
+      let print_elem x = pp ?max_level x in
+      print ppf "(@[<hov>%t@])" (print_sequence ", " print_elem lst)
 
 let print_record fpp vpp assoc ppf =
   print ppf "{@[<hov>%t@]}" (print_sequence "; " (print_field fpp vpp) assoc)

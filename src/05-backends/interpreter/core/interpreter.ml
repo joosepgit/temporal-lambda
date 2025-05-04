@@ -1,16 +1,18 @@
 module Error = Utils.Error
 module Ast = Language.Ast
+module Tau = Language.Tau.TauImpl
 module Const = Language.Const
 module Context = Language.Context
 module PrettyPrint = Language.PrettyPrint
 
 module ContextHolderModule =
-  Context.Make (Ast.Variable) (Map.Make (Ast.Variable))
+  Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
 
 type evaluation_environment = {
-  state : (Ast.tau * Ast.expression) ContextHolderModule.t;
-  variables : Ast.expression ContextHolderModule.t;
-  builtin_functions : (Ast.expression -> Ast.computation) ContextHolderModule.t;
+  state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
+  variables : Tau.t Ast.expression ContextHolderModule.t;
+  builtin_functions :
+    (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
 }
 
 let initial_environment =
@@ -34,7 +36,7 @@ let rec eval_tuple (env : evaluation_environment) = function
       eval_tuple env (ContextHolderModule.find_variable x env.variables)
   | expr ->
       Error.runtime "Tuple expected but got %t"
-        (PrettyPrint.print_expression expr)
+        (PrettyPrint.print_expression (module Tau) expr)
 
 let rec eval_variant (env : evaluation_environment) = function
   | Ast.Variant (lbl, expr) -> (lbl, expr)
@@ -42,7 +44,7 @@ let rec eval_variant (env : evaluation_environment) = function
       eval_variant env (ContextHolderModule.find_variable x env.variables)
   | expr ->
       Error.runtime "Variant expected but got %t"
-        (PrettyPrint.print_expression expr)
+        (PrettyPrint.print_expression (module Tau) expr)
 
 let rec eval_const (env : evaluation_environment) = function
   | Ast.Const c -> c
@@ -50,7 +52,7 @@ let rec eval_const (env : evaluation_environment) = function
       eval_const env (ContextHolderModule.find_variable x env.variables)
   | expr ->
       Error.runtime "Const expected but got %t"
-        (PrettyPrint.print_expression expr)
+        (PrettyPrint.print_expression (module Tau) expr)
 
 let rec match_pattern_with_expression env pat expr =
   match pat with
@@ -211,7 +213,7 @@ let rec eval_function env = function
       | None -> ContextHolderModule.find_variable x env.builtin_functions)
   | expr ->
       Error.runtime "Function expected but got %t"
-        (PrettyPrint.print_expression expr)
+        (PrettyPrint.print_expression (module Tau) expr)
 
 let step_in_context step env redCtx ctx term =
   let terms' = step env term in
@@ -283,11 +285,11 @@ let rec step_computation env = function
           [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
       | _ ->
           Error.runtime "Unbox expected a variable but got expression %t"
-            (PrettyPrint.print_expression expr))
+            (PrettyPrint.print_expression (module Tau) expr))
 
 type load_state = {
   environment : evaluation_environment;
-  computations : Ast.computation list;
+  computations : Tau.t Ast.computation list;
 }
 
 let initial_load_state =
