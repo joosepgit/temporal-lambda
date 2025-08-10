@@ -1,3 +1,53 @@
-run let y = 5 in box 3 (y, y+1) as tuple in delay 3 unbox 3 tuple as (a, b) in a+b
+type nat =
+  | Zero
+  | Succ of nat
 
-run let y = "a" in let z = "b" in box 3 (y, z) as tuple in delay 4 unbox 3 tuple as (a, b) in (a, b)
+let foo_int =
+  function
+  | Zero -> 0
+  | Succ m -> 1
+
+let foo_int_temporal =
+  function
+  | Zero -> delay 3 0
+  | Succ m -> delay 3 1
+
+let del n = delay 9 (foo_int_temporal (delay 2 (Succ n)))
+
+let higher n = fun m -> delay 5 (n + m)
+
+let higher2 n = delay 10 (fun m -> delay 5 (n + m))
+
+let foo f f2 n = f n; f n; f n; f2 n; f2 n; delay 42 ()
+
+let bar n = delay 24 ()
+
+let bar2 n = delay 23 ()
+
+let foobar () = foo bar bar2 7
+
+let test () = box 3 (higher 5 6) as x in (delay 3 x)
+
+let test2 () = box 3 (42) as r in delay 3 (unbox 3 r as y in y)
+
+let test3 () = delay 2 (
+  box 3 (
+    43,
+    8+91,
+    (let h = "test" in delay 10 (h))
+  ) as r
+  in delay 3 (
+    unbox 3 r as (n, a, h)
+    in (n, h))
+)
+
+run foo_int Zero
+run foo_int_temporal Zero
+run del Zero
+run higher 5 6
+run higher2 5 6
+run foobar ()
+run test ()
+run test2 ()
+run test3 ()
+

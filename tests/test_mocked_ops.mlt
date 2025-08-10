@@ -1,0 +1,28 @@
+type model = Model of string
+type fresh = Fresh of model
+type cooled = Cooled of fresh
+type uvCured = UvCured of cooled
+type complete = Complete of uvCured
+
+(* Mock 3D printing operation with signature [7]model -> fresh *)
+let printResinModel model = delay 7 unbox 7 model as
+            printingResult in Fresh printingResult
+
+(* Mock UV curing operation with signature [10]cooled -> uvCured *)
+let uvCure cooledObject = delay 10 unbox 10 cooledObject as
+            uvCuredObject in UvCured uvCuredObject
+
+run
+    let freshSword = box 7 (Model "Sword") as swordModel 
+    in printResinModel swordModel in
+    box 5 freshSword as coolingSword in 
+    let freshHammer = box 7 (Model "Hammer") as hammerModel
+    in printResinModel hammerModel in
+    box 5 freshHammer as coolingHammer in
+    unbox 5 coolingSword as cooledSword in 
+    let curedSword = box 10 (Cooled cooledSword) as cooledSword 
+    in uvCure cooledSword in
+    unbox 5 coolingHammer as cooledHammer in
+    let curedHammer = box 10 (Cooled cooledHammer) as cooledHammer
+    in uvCure cooledHammer in
+    (Complete curedSword, Complete curedHammer)

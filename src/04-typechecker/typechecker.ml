@@ -280,25 +280,20 @@ and infer_computation state = function
       let abstract_context_tau =
         ContextHolderModule.abstract_tau_sum state.variables
       in
-      let past_context = ContextHolderModule.subtract_tau tau state.variables in
-      let past_state = { state with variables = past_context } in
-      let past_value_ty, eqs =
-        try infer_expression past_state e
-        with Exception.VariableNotFound var ->
-          Error.typing
-            "Variable %t did not exist in boxed form %t temporal units ago, \
-             unboxing too soon or with too large temporal value?"
-            (fun ppf -> Format.fprintf ppf "%s" var)
-            (fun ppf ->
-              PrettyPrint.print_tau
-                (module Tau)
-                (PrettyPrint.TauPrintParam.create ())
-                tau ppf)
+      let var =
+        match e with
+        | Ast.Var x -> x
+        | _ -> Error.typing "Unboxing requires a variable."
       in
+      let sum_taus_added_after =
+        ContextHolderModule.sum_taus_added_after var state.variables
+      in
+      let boxed_ty, eqs = infer_expression state e in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
       ( comp_ty,
-        Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), past_value_ty)
+        Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), boxed_ty)
         :: Constraint.TauGeq (abstract_context_tau, tau)
+        :: Constraint.TauGeq (sum_taus_added_after, tau)
         :: eqs
         @ eqs' )
 

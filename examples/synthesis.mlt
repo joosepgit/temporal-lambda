@@ -1,0 +1,40 @@
+type chemical =
+  | Raw of string
+  | Dried of chemical
+  | Combined of chemical * chemical
+  | Catalyst of string
+
+type 'a reaction_tree = 
+  | Step of 'a
+  | Branch of 'a reaction_tree * 'a reaction_tree
+
+let mixWithCatalyst (c1, t1) (c2, t2) cat =
+  match (c1, c2, cat) with
+  | (Dried (Raw "acetone"), Dried (Raw "acetone"), c) ->
+      let result = Combined (Dried (Raw "diacetone"), c) in
+      (result, Branch (t1, t2))
+  | (Dried (Raw "benzene"), Dried (Raw "acetone"), c) ->
+      let result = Combined (Dried (Raw "phenylacetone"), c) in
+      (result, Branch (t1, t2))
+  | (Combined (Dried (Raw "diacetone"), _), Dried (Raw "benzene"), c) ->
+      let result = Combined (Dried (Raw "pseudoephedrine"), c) in
+      (result, Branch (Branch (t1, t2), Step result))
+  | _ ->
+      let fallback = Raw "unreacted" in
+      (fallback, Branch (t1, t2))
+
+let createRawBatch primary secondary =
+  box 10 (Raw primary)::(Raw primary)::(Raw secondary)::[] as batch in batch
+
+let evaporate batch = delay 10 unbox 10 batch as evaporated_raw_batch in 
+  map (fun x -> Dried x) evaporated_raw_batch
+
+run
+  let batch = createRawBatch "acetone" "benzene" in
+  let (dryAcetone1::dryAcetone2::dryBenzene::[]) = evaporate batch in
+
+  let catalyst = Catalyst "PtCl2" in
+
+  let intermediate = mixWithCatalyst (dryAcetone1, Step dryAcetone1) (dryAcetone2, Step dryAcetone2) catalyst in
+  let finalProductAndTree = mixWithCatalyst intermediate (dryBenzene, Step dryBenzene) catalyst in
+  finalProductAndTree
