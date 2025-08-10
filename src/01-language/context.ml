@@ -68,6 +68,19 @@ struct
     in
     find lst
 
+  let sum_taus_added_after (key : var) (lst : 'a t) : base_tau =
+    let rec go acc = function
+      | [] ->
+          Variable.print key Format.str_formatter;
+          raise (VariableNotFound (Format.flush_str_formatter ()))
+      | Tau t :: rest -> go (Ast.TauAdd (acc, t)) rest
+      | VarMap map :: rest -> (
+          match VariableMap.find_opt key map with
+          | Some _ -> acc
+          | None -> go acc rest)
+    in
+    go (Ast.TauConst Base.zero) lst
+
   let abstract_tau_sum (lst : 'a t) : base_tau =
     let rec sum acc = function
       | [] -> acc
