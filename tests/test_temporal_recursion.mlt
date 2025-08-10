@@ -1,7 +1,0 @@
-let rec box_n_values n boxed =
-  if n = 0 then boxed else box_n_values (n - 1) ((box 1 n*n as v in v) :: boxed)
-
-let rec unbox_and_sum_values boxed =
-  fold_left (fun acc value -> unbox 1 value as v in acc + v) 0 boxed
-
-run let boxed = box_n_values 5 [] in delay 1 unbox_and_sum_values boxed

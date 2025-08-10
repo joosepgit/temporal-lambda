@@ -276,11 +276,10 @@ let rec step_computation env = function
       | _ ->
           Error.runtime "Box expected a variable but got pattern %t"
             (PrettyPrint.print_pattern pat))
-  | Ast.Unbox (tau, expr, (pat, comp)) -> (
+  | Ast.Unbox (_tau, expr, (pat, comp)) -> (
       match expr with
       | Ast.Var x ->
-          let past_state = ContextHolderModule.subtract_tau tau env.state in
-          let _tau', expr' = ContextHolderModule.find_variable x past_state in
+          let _tau', expr' = ContextHolderModule.find_variable x env.state in
           let subst = match_pattern_with_expression env pat expr' in
           [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
       | _ ->

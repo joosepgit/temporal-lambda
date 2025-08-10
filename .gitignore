@@ -6,4 +6,4 @@ cli.exe
 .merlin
 web/web.bc.js
 
-examples/temp.mlt
+examples/temp*.mlt
