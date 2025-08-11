@@ -1,14 +1,14 @@
-# Millet
+# Temporal Millet
 
-Do you, like me, test theoretical programming language concepts by building your own programming language? Do you, like me, do it by copying and modifying your most recent language because you are too lazy to build everything from scratch? Do you, like me, end up with a mess? Then Millet is for you. It is a pure ML-like language with simple and modular codebase that you can use as a template for your next language.
+Temporal Millet was implemented as part of a Master's thesis that showcases how type systems can be used to track the temporal availability of resources, and how types can be inferred for unannotated terms in the presence of temporal effects. It is a pure ML-like language, built as an extension of Millet (https://github.com/matijapretnar/millet). The concepts implemented in Temporal Millet are hugely inspired by the work of Ahman and Žajdela (https://msfp-workshop.github.io/msfp2024/submissions/ahman+%c5%beajdela.pdf).
 
-## How to install and run Millet?
+## How to install and run Temporal Millet?
 
 Install dependencies by
 
     opam install menhir vdom ocamlformat=0.27.0
 
-and build Millet by running (requires OCaml >= 4.14.0)
+and build Millet by running (tested with OCaml >= 5.1.1)
 
     make
 
@@ -16,44 +16,16 @@ and you can clean up by running
 
     make clean
 
-Millet gives you two options to run programs:
+The repository also includes automated tests that run on every master build. To run the tests locally, run
 
-- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface is also available at <https://matija.pretnar.info/millet/>.
+    make test
+
+Temporal Millet, like original Millet, gives you two options to run programs:
+
+- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface of Temporal Millet also showcases an interactive state that tracks temporal information. It is also available at <https://joosepgit.github.io/temporal-lambda/>.
 
 - The second option is a command line executable run as
 
       ./cli.exe file1.mlt file2.mlt ...
 
-  which loads all the commands in all the listed files and starts evaluating the given program, displaying all outgoing signals and the terminal configuration (if there is one). Non-deterministic reductions are chosen randomly and there is no option of introducing external interrupts. If you do not want to load the standard library, run Millet with the `--no-stdlib` option.
-
-## How to use Millet as a template?
-
-The easiest way is to first create an empty repository:
-
-    mkdir the-best-language
-    cd the-best-language
-    git init
-
-Next, add Millet's remote repository:
-
-    git remote add millet git@github.com:matijapretnar/millet.git
-    git fetch millet
-
-Then, create two branches, one for your main development and one for tracking Millet:
-
-    git branch --no-track main millet/main
-    git branch --track millet millet/main
-    git checkout main
-
-Now, each time Millet updates, you can run
-
-    git checkout millet
-    git pull
-    git checkout main
-    git merge millet
-
-to pull latest changes and merge them into your main development.
-
-## Why the name Millet?
-
-Millet uses fine-grain call-by-value core calculus, and there is no finer grain than [millet](https://en.wikipedia.org/wiki/Millet). Plus, the `.mlt` extension fits nicely into the ML family.
+  which loads all the commands in all the listed files and starts evaluating the given program, displaying all outgoing signals and the terminal configuration (if there is one). Non-deterministic reductions are chosen randomly and there is no option of introducing external interrupts. If you do not want to load the standard library, run Temporal Millet with the `--no-stdlib` option. If you want to see the variable context and state at the end of a program, run Temporal Millet with the `--debug` option.
