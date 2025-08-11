@@ -15,13 +15,16 @@ let uvCure cooledObject = delay 10 unbox 10 cooledObject as
 run
     let freshSword = box 7 (Model "Sword") as swordModel 
     in printResinModel swordModel in
-    box 5 freshSword as coolingSword in 
+    box 5 freshSword as coolingSword in
+
     let freshHammer = box 7 (Model "Hammer") as hammerModel
     in printResinModel hammerModel in
     box 5 freshHammer as coolingHammer in
+
     unbox 5 coolingSword as cooledSword in 
     let curedSword = box 10 (Cooled cooledSword) as cooledSword 
     in uvCure cooledSword in
+
     unbox 5 coolingHammer as cooledHammer in
     let curedHammer = box 10 (Cooled cooledHammer) as cooledHammer
     in uvCure cooledHammer in
