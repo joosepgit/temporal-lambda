@@ -280,11 +280,13 @@ and infer_computation state = function
       let abstract_context_tau =
         ContextHolderModule.abstract_tau_sum state.variables
       in
-      let var =
+      let rec findVar e =
         match e with
         | Ast.Var x -> x
+        | Ast.Annotated (e', _) -> findVar e'
         | _ -> Error.typing "Unboxing requires a variable."
       in
+      let var = findVar e in
       let sum_taus_added_after =
         ContextHolderModule.sum_taus_added_after var state.variables
       in

@@ -408,6 +408,8 @@ plain_simple_ty:
     { TyApply (t, []) }
   | t = PARAM
     { TyParam t }
+  | LBRACK tau = INT RBRACK ty = ty
+    { TyBox (tau, ty) }
   | LPAREN t = ty RPAREN
     { t.it }
 

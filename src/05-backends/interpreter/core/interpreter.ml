@@ -265,26 +265,34 @@ let rec step_computation env = function
         { env with state = ContextHolderModule.add_temp tau env.state }
       in
       [ (env', ComputationRedex Delay, fun () -> comp) ]
-  | Ast.Box (tau, expr, (pat, comp)) -> (
-      match pat with
-      | Ast.PVar x ->
-          let state' =
-            ContextHolderModule.add_variable x (tau, expr) env.state
-          in
-          let env' = { env with state = state' } in
-          [ (env', ComputationRedex Box, fun () -> comp) ]
-      | _ ->
-          Error.runtime "Box expected a variable but got pattern %t"
-            (PrettyPrint.print_pattern pat))
-  | Ast.Unbox (_tau, expr, (pat, comp)) -> (
-      match expr with
-      | Ast.Var x ->
-          let _tau', expr' = ContextHolderModule.find_variable x env.state in
-          let subst = match_pattern_with_expression env pat expr' in
-          [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
-      | _ ->
-          Error.runtime "Unbox expected a variable but got expression %t"
-            (PrettyPrint.print_expression (module Tau) expr))
+  | Ast.Box (tau, expr, (pat, comp)) ->
+      let rec doBox tau expr pat comp =
+        match pat with
+        | Ast.PVar x ->
+            let state' =
+              ContextHolderModule.add_variable x (tau, expr) env.state
+            in
+            let env' = { env with state = state' } in
+            [ (env', ComputationRedex Box, fun () -> comp) ]
+        | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
+        | _ ->
+            Error.runtime "Box expected a variable but got pattern %t"
+              (PrettyPrint.print_pattern pat)
+      in
+      doBox tau expr pat comp
+  | Ast.Unbox (_tau, expr, (pat, comp)) ->
+      let rec doUnbox expr pat comp =
+        match expr with
+        | Ast.Var x ->
+            let _tau', expr' = ContextHolderModule.find_variable x env.state in
+            let subst = match_pattern_with_expression env pat expr' in
+            [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
+        | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
+        | _ ->
+            Error.runtime "Unbox expected a variable but got expression %t"
+              (PrettyPrint.print_expression (module Tau) expr)
+      in
+      doUnbox expr pat comp
 
 type load_state = {
   environment : evaluation_environment;
