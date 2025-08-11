@@ -21,6 +21,7 @@ and plain_ty =
   | TyParam of ty_param  (** ['a] *)
   | TyArrow of ty * plain_comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
+  | TyBox of int * ty  (** [ [tau]ty ] *)
 
 and plain_comp_ty = CompTy of ty * int  (** [ty ! tau] *)
 

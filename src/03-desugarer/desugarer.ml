@@ -71,6 +71,10 @@ and desugar_plain_ty ~loc state = function
       let tys' = List.map (desugar_ty state) tys in
       Untyped.TyTuple tys'
   | Sugared.TyConst c -> Untyped.TyConst c
+  | Sugared.TyBox (tau, ty) ->
+      let tau' = Untyped.TauConst (Tau.of_int tau) in
+      let ty' = desugar_ty state ty in
+      Untyped.TyBox (tau', ty')
 
 let rec desugar_pattern state vars { Sugared.it = pat; at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state vars pat in
