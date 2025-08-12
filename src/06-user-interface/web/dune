@@ -30,4 +30,7 @@
    (echo "({|3D printing|}, {|")
    (cat ../../../examples/3dprint.mlt)
    (echo "|});")
+   (echo "({|Top-level structures|}, {|")
+   (cat ../../../examples/toplevel.mlt)
+   (echo "|});")
    (echo "]"))))

@@ -1,0 +1,16 @@
+type ('l, 'r) either = Left of 'l | Right of 'r
+
+let n = 5
+
+let swap = function
+  | Left l  -> Right l
+  | Right r -> Left r
+
+let rec foldl f acc = function
+  | []      -> acc
+  | y :: ys -> foldl f (f acc y) ys
+
+run
+  let lst = (Left 5) :: (Right "test") :: [] in
+  let swapped_lst = foldl (fun acc e -> swap e :: acc) [] lst in
+  reverse swapped_lst
