@@ -241,10 +241,14 @@ and infer_computation state = function
       (Ast.CompTy (ty, Ast.TauConst Tau.zero), eqs)
   | Ast.Do (comp1, comp2) ->
       let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
-      let state' = extend_temporal state tau1 in
+      let comp_tau = fresh_tau () in
+      let state' = extend_temporal state comp_tau in
       let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
-      ( CompTy (ty2, Ast.TauAdd (tau1, tau2)),
-        (Constraint.TypeConstraint (ty1, ty1') :: eqs1) @ eqs2 )
+      ( CompTy (ty2, Ast.TauAdd (comp_tau, tau2)),
+        Constraint.TypeConstraint (ty1, ty1')
+        :: Constraint.TauConstraint (tau1, comp_tau)
+        :: eqs1
+        @ eqs2 )
   | Ast.Apply (e1, e2) ->
       let t1, eqs1 = infer_expression state e1
       and t2, eqs2 = infer_expression state e2
