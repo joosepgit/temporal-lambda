@@ -8,7 +8,7 @@ Install dependencies by
 
     opam install menhir vdom ocamlformat=0.27.0
 
-and build Millet by running (tested with OCaml >= 5.1.1)
+and build Millet by running (tested with OCaml >= 4.14.0)
 
     make
 
