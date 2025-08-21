@@ -36,4 +36,7 @@
    (echo "({|Top-level structures|}, {|")
    (cat ../../../examples/toplevel.mlt)
    (echo "|});")
+   (echo "({|Folding over boxed values|}, {|")
+   (cat ../../../examples/fold_over_boxes.mlt)
+   (echo "|});")
    (echo "]"))))
