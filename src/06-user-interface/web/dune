@@ -39,4 +39,7 @@
    (echo "({|Folding over boxed values|}, {|")
    (cat ../../../examples/fold_over_boxes.mlt)
    (echo "|});")
+   (echo "({|Basic unbox|}, {|")
+   (cat ../../../examples/basic_unbox.mlt)
+   (echo "|});")
    (echo "]"))))
